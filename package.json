@@ -1,0 +1,41 @@
+{
+  "name": "discord-wordle-stats",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node --experimental-transform-types src/index.ts",
+    "docker:run": "docker run --rm -ti --init -v $(pwd)/config:/app/config --env-file .env discord-wordle-stats",
+    "docker:build": "docker build -t discord-wordle-stats ."
+  },
+  "author": "",
+  "license": "MIT",
+  "description": "",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/compat": "^2.0.0",
+    "@eslint/js": "^9.39.1",
+    "@stylistic/eslint-plugin": "^3.1.0",
+    "@tsconfig/node-ts": "^23.6.2",
+    "@tsconfig/node22": "^22.0.4",
+    "@tsconfig/strictest": "^2.0.8",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.1",
+    "eslint-config-airbnb-extended": "^2.3.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import-x": "^4.16.1",
+    "eslint-plugin-n": "^17.23.1",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.6.2",
+    "typescript": "5.8",
+    "typescript-eslint": "^8.47.0"
+  },
+  "dependencies": {
+    "bufferutil": "^4.0.9",
+    "discord.js": "^14.24.2",
+    "dotenv": "^17.2.3",
+    "pino": "^10.1.0",
+    "zlib-sync": "^0.1.10"
+  }
+}

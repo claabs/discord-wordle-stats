@@ -1,0 +1,26 @@
+{
+  "extends": [
+    "@tsconfig/strictest/tsconfig",
+    "@tsconfig/node22/tsconfig",
+    "@tsconfig/node-ts/tsconfig",
+  ],
+  "compilerOptions": {
+    "erasableSyntaxOnly": false, // Using transform-types
+    // ESM
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    // Disable extra strict rules
+    "exactOptionalPropertyTypes": false,
+    "noPropertyAccessFromIndexSignature": false,
+    // Output
+    "noEmit": true,
+  },
+  "include": [
+    "**/*.ts",
+    ".*.*js",
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
