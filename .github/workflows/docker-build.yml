@@ -27,7 +27,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
-            org.opencontainers.image.created={{ date 'YYYY-MM-DD[T]HH-mm-ss[Z]' }}
+            org.opencontainers.image.created={{ date 'YYYY-MM-DD[T]HH:mm:ss[Z]' }}
             org.opencontainers.image.authors=Charlie Laabs (https://github.com/claabs)
             org.opencontainers.image.url=https://github.com/${{ github.repository }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
