@@ -5,14 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "type": "bun",
-            "internalConsoleOptions": "neverOpen",
-            "request": "launch",
-            "name": "Debug Application",
+            "name": "Launch Program",
             "program": "${workspaceFolder}/src/index.ts",
-            "cwd": "${workspaceFolder}",
-            "noDebug": true,
-            "watchMode": false
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "args": [
+                "--experimental-transform-types"
+            ],
+            "type": "node",
         },
+        {
+            "command": "npm start",
+            "name": "Run npm start",
+            "request": "launch",
+            "type": "node-terminal"
+        }
     ]
 }

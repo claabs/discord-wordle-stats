@@ -1,9 +1,14 @@
 {
   "extends": [
     "@tsconfig/strictest/tsconfig",
-    "@tsconfig/bun/tsconfig",
+    "@tsconfig/node22/tsconfig",
+    "@tsconfig/node-ts/tsconfig",
   ],
   "compilerOptions": {
+    "erasableSyntaxOnly": false, // Using transform-types
+    // ESM
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     // Disable extra strict rules
     "exactOptionalPropertyTypes": false,
     "noPropertyAccessFromIndexSignature": false,

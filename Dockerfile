@@ -1,14 +1,14 @@
-FROM oven/bun:1-alpine AS build
+FROM node:24-alpine AS build
 
 # Set working directory
 WORKDIR /app
 
 # Install dependencies
-COPY package.json bun.lock ./
+COPY package.json package-lock.json* ./
 RUN apk add --no-cache g++ python3 make && \
-    bun install --frozen-lockfile --production
+    npm ci --omit=dev
 
-FROM oven/bun:1-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 
@@ -21,6 +21,6 @@ ENV NODE_ENV=production DATA_PATH=/data
 COPY . .
 
 # Use the built-in non-root 'node' user for security
-USER bun
+USER node
 
-CMD ["bun", "run", "./src/index.ts"]
+CMD ["node", "./src/index.ts", "--experimental-transform-types"]
