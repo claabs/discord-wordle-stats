@@ -76,5 +76,3 @@ export async function removeNickname(guildId: string, nickname: string): Promise
     return false;
   }
 }
-
-export default { addNickname, getUserIdFromNickname };
