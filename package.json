@@ -3,14 +3,21 @@
   "version": "1.0.0",
   "main": "src/index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node --experimental-transform-types src/index.ts",
     "docker:run": "docker run --rm -ti --init -v $(pwd)/data:/data --env-file .env discord-wordle-stats",
-    "docker:build": "docker build -t discord-wordle-stats ."
+    "docker:build": "docker build -t discord-wordle-stats .",
+    "lint": "tsc; eslint ."
   },
-  "author": "",
+  "author": {
+    "name": "Charlie Laabs",
+    "url": "https://github.com/claabs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/claabs/discord-wordle-stats.git"
+  },
   "license": "MIT",
-  "description": "",
+  "description": "A Discord bot that calculates statistics for the official Discord Wordle application",
   "type": "module",
   "devDependencies": {
     "@eslint/compat": "^2.0.0",

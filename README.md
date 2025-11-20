@@ -1,6 +1,6 @@
 # Discord Wordle Stats
 
-A Discord bot that calculates stats for the official Discord Wordle application.
+A Discord bot that calculates statistics for the official Discord Wordle application.
 
 ## Features
 
@@ -64,3 +64,4 @@ services:
 - Configurable fail score
 - Fix clear cache for stats
 - Optional trigger when Wordle bot posts results message
+- Add screenshots
