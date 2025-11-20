@@ -2,13 +2,20 @@
 /* eslint-disable no-restricted-syntax */
 import { MessageFlags, TextChannel } from 'discord.js';
 
-import { addNickname, getAllNicknames } from '../data/nicknames.ts';
-import { addResult, getLastTimestamp, getResults } from '../data/results.ts';
+import {
+  addNickname,
+  addResult,
+  getAllNicknames,
+  getLatestTimestamp,
+  getResults,
+  getUniqueNicknamesFromResults,
+  getUserIdFromNickname,
+} from '../data/pouch.ts';
 import { logger } from '../logger.ts';
 
 import type { ChannelType, ChatInputCommandInteraction, GuildMember } from 'discord.js';
 
-import type { Winner } from '../data/results.ts';
+import type { Winner } from '../data/pouch.ts';
 
 const WORDLE_BOT_USER_ID = '1211781489931452447';
 // Points assigned for a failed Wordle attempt (X)
@@ -19,29 +26,32 @@ interface UserStats {
   count: number;
   failCount: number;
   average: number;
+  userIdOrNickname: string;
   isNickname: boolean;
 }
 
-async function calculateAverageScores(
-  guildId: string,
-  channelId: string,
-): Promise<Record<string, UserStats>> {
+interface ScoreResult {
+  resultsCount: number;
+  userStats: UserStats[];
+}
+
+async function calculateAverageScores(guildId: string, channelId: string): Promise<ScoreResult> {
   const results = await getResults(guildId, channelId);
-  const nicknames = await getAllNicknames(guildId); // nickname -> userId
 
   const acc: Record<
     string,
     { sum: number; count: number; failCount: number; isNickname: boolean }
   > = {};
 
-  for (const result of Object.values(results)) {
+  for (const result of results) {
     for (const winner of result.winners) {
       let userId: string | undefined;
       let isNickname = false;
       if ('id' in winner) {
         userId = winner.id;
       } else if ('nickname' in winner) {
-        const resolvedUserId = nicknames[winner.nickname];
+        // eslint-disable-next-line no-await-in-loop
+        const resolvedUserId = await getUserIdFromNickname(guildId, winner.nickname);
         isNickname = !resolvedUserId;
         userId = resolvedUserId ?? winner.nickname;
       }
@@ -55,17 +65,19 @@ async function calculateAverageScores(
     }
   }
 
-  const out: Record<string, UserStats> = {};
-  for (const [k, v] of Object.entries(acc)) {
-    out[k] = {
-      sum: v.sum,
-      count: v.count,
-      failCount: v.failCount,
-      average: v.sum / v.count,
-      isNickname: v.isNickname,
-    };
-  }
-  return out;
+  const userStats: UserStats[] = Object.entries(acc).map(([k, v]) => ({
+    sum: v.sum,
+    count: v.count,
+    failCount: v.failCount,
+    average: v.sum / v.count,
+    userIdOrNickname: k,
+    isNickname: v.isNickname,
+  }));
+
+  return {
+    resultsCount: Object.keys(results).length,
+    userStats,
+  };
 }
 
 export async function handleStats(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -94,14 +106,16 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
   const clearCache = interaction.options.getBoolean('clear-cache', false) ?? false;
 
   await interaction.deferReply({
-    // flags: MessageFlags.Ephemeral,
+    flags: MessageFlags.Ephemeral,
   });
 
-  const lastMessageTimestamp = clearCache ? 0 : await getLastTimestamp(guildId, channel.id);
+  const lastMessageTimestamp = clearCache ? 0 : await getLatestTimestamp(guildId, channel.id);
 
   let lastProcessedMessage: string | undefined;
   let processedMessagesCount = 0;
   let continueFetchingMessages = true;
+
+  logger.debug({ lastMessageTimestamp }, 'Fetching message history');
 
   // We'll page through history in batches of 100 until we reach the last stored timestamp
   while (continueFetchingMessages) {
@@ -169,11 +183,13 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
 
       // store the result using the message timestamp
       // eslint-disable-next-line no-await-in-loop
-      await addResult(guildId, channel.id, msg.createdTimestamp, {
-        messageId: msg.id,
+      await addResult({
+        guildId,
+        channelId: channel.id,
         timestamp: msg.createdTimestamp,
         content,
         winners,
+        messageId: msg.id,
       });
       lastProcessedMessage = msg.id;
 
@@ -186,15 +202,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
     'Processed new Wordle results',
   );
 
-  const results = await getResults(guildId, channel.id);
-  const allResultNicknames = new Set<string>();
-  for (const record of Object.values(results)) {
-    for (const winner of record.winners) {
-      if ('nickname' in winner) {
-        allResultNicknames.add(winner.nickname);
-      }
-    }
-  }
+  const allResultNicknames = await getUniqueNicknamesFromResults(guildId);
 
   const allStoredNicknames = new Set<string>(Object.keys(await getAllNicknames(guildId)));
   const unmatchedNicknames = allResultNicknames.difference(allStoredNicknames);
@@ -222,17 +230,17 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
 
   const scores = await calculateAverageScores(guildId, channel.id);
 
-  const sortedScores = Object.entries(scores).sort((a, b) => a[1].average - b[1].average);
+  const sortedUserStats = scores.userStats.sort((a, b) => a.average - b.average);
 
-  const statsLines = sortedScores.map(([userId, stats], index) => {
+  const statsLines = sortedUserStats.map((stats, index) => {
     const rank = index + 1;
     const averageStr = stats.average.toFixed(3);
-    const idDisplay = stats.isNickname ? userId : `<@${userId}>`;
+    const idDisplay = stats.isNickname ? stats.userIdOrNickname : `<@${stats.userIdOrNickname}>`;
     return `#${rank}: ${idDisplay} - Average Score: ${averageStr} (${stats.count} games, ${stats.failCount} fails)`;
   });
 
   const contentLines = [
-    `Stats for ${Object.keys(results).length} games (fails count as ${FAIL_SCORE}):`,
+    `Stats for ${scores.resultsCount} games (fails score as ${FAIL_SCORE}):`,
     ...statsLines,
   ];
 

@@ -2,7 +2,7 @@
 import { GuildMember, MessageFlags } from 'discord.js';
 
 import { ownerId } from '../config.ts';
-import { addNickname, getAllNicknames, removeNickname } from '../data/nicknames.ts';
+import { addNickname, getAllNicknames, removeNickname } from '../data/pouch.ts';
 
 import type {
   APIInteractionGuildMember,

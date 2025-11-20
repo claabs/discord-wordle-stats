@@ -20,6 +20,8 @@
     "@tsconfig/node22": "^22.0.4",
     "@tsconfig/strictest": "^2.0.8",
     "@types/node": "^24.10.1",
+    "@types/pouchdb": "^6.4.2",
+    "@types/pouchdb-find": "^7.3.3",
     "eslint": "^9.39.1",
     "eslint-config-airbnb-extended": "^2.3.2",
     "eslint-config-prettier": "^10.1.8",
@@ -36,6 +38,8 @@
     "discord.js": "^14.24.2",
     "dotenv": "^17.2.3",
     "pino": "^10.1.0",
+    "pouchdb": "^9.0.0",
+    "pouchdb-find": "^9.0.0",
     "zlib-sync": "^0.1.10"
   }
 }

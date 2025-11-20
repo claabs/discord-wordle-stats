@@ -48,3 +48,11 @@ All application configuration is provided via a `config.json` file. The optional
 ### Persistent Data
 
 - The `/data` volume stores the database
+
+## To Do
+
+- Fix docker
+- Improved logging, child loggers
+- Refactor terrible handler code
+- Add backstop to message history scrape
+- Cleanup eslint ignores
