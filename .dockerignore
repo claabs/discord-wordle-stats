@@ -1,9 +1,6 @@
-
-
 # Only include production files
 **/*
 !src/**
 !package.json
-!package-lock.json
+!bun.lock
 !tsconfig.json
-!docker-entrypoint.sh
