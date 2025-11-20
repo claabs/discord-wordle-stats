@@ -26,6 +26,15 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.created={{date}}
+            org.opencontainers.image.authors=Charlie Laabs (https://github.com/claabs)
+            org.opencontainers.image.url=https://github.com/${{ github.repository }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision={{sha}}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.title=${{ github.repository }}
+            org.opencontainers.image.description=A Discord bot that calculates statistics for the official Discord Wordle application
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -48,6 +57,7 @@ jobs:
         with:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha,scope=${{ github.workflow }}
           cache-to: type=gha,mode=max,scope=${{ github.workflow }}

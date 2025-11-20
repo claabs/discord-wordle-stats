@@ -10,6 +10,8 @@ RUN apk add --no-cache g++ python3 make && \
 
 FROM node:24-alpine
 
+LABEL org.opencontainers.image.base.name="node:24-alpine"
+
 WORKDIR /app
 
 COPY --from=build /app/node_modules/ ./node_modules
