@@ -46,6 +46,7 @@ const db = new PouchDB<ResultDoc | NicknameDoc>(path.join(dataPath, 'db'));
 
 await db.createIndex({ index: { fields: ['timestamp'] } });
 await db.createIndex({ index: { fields: ['type', 'guildId', 'nickname'] } });
+await db.createIndex({ index: { fields: ['type', 'guildId', 'channelId'] } });
 
 function nickId(guildId: string, nickname: string): string {
   // encode nickname to be safe in _id
