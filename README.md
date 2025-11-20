@@ -21,7 +21,7 @@ A Discord bot that calculates stats for the official Discord Wordle application.
 ```sh
 docker run --rm --init \
   -v $(pwd)/data:/data \
-  -e TZ=America/New_York \
+  -e BOT_TOKEN=abcdefghijklmnopqrstuvwxyz.abcdef.abcdefghijklmnopqrstuvwxyz1234567890AB \
   ghcr.io/claabs/discord-wordle-stats
 ```
 
@@ -33,7 +33,7 @@ services:
     image: ghcr.io/claabs/discord-wordle-stats
     init: true
     environment:
-      TZ: "America/New_York"
+      BOT_TOKEN: abcdefghijklmnopqrstuvwxyz.abcdef.abcdefghijklmnopqrstuvwxyz1234567890AB
     volumes:
       - ./data:/data
     restart: unless-stopped
@@ -41,13 +41,18 @@ services:
 
 ## Configuration
 
-All application configuration is provided via a `config.json` file. The optionaly environment variables are:
+### Environment Variables
 
-- `TZ`: Set this to your desired timezone (e.g., `America/New_York`, `UTC`, `Europe/London`). Default is UTC if not set.
+- **`BOT_TOKEN`**: Required. The Discord bot token for your application.
+- **`OWNER_ID`**: Optional. Discord user ID for the bot owner in addition to guild moderators; used for moderator-restricted commands.
+- **`LOG_LEVEL`**: Optional. Logging verbosity. Defaults to `info` if not set. Common values: `debug`, `info`, `warn`, `error`.
 
-### Persistent Data
+### Discord Bot Config
 
-- The `/data` volume stores the database
+- Enable **Presence Intent**
+  - required to match nicknames to users in the member list
+- Enable **Message Content Intent**
+  - required to read the Wordle bot's past messages
 
 ## To Do
 
@@ -56,3 +61,4 @@ All application configuration is provided via a `config.json` file. The optional
 - Add backstop to message history scrape
 - Cleanup eslint ignores
 - Universal error handler for interactions
+- Configurable fail score
