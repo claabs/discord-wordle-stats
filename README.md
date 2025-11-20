@@ -51,8 +51,8 @@ All application configuration is provided via a `config.json` file. The optional
 
 ## To Do
 
-- Fix docker
 - Improved logging, child loggers
 - Refactor terrible handler code
 - Add backstop to message history scrape
 - Cleanup eslint ignores
+- Universal error handler for interactions

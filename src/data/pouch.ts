@@ -1,7 +1,10 @@
 /* eslint-disable no-restricted-syntax */
+import path from 'node:path';
+
 import PouchDB from 'pouchdb';
 import PouchdbFind from 'pouchdb-find';
 
+import { dataPath } from '../config.ts';
 import { logger } from '../logger.ts';
 
 PouchDB.plugin(PouchdbFind);
@@ -39,7 +42,7 @@ export interface NicknameDoc {
   userId: string;
 }
 
-const db = new PouchDB<ResultDoc | NicknameDoc>('./data/db'); // file-backed (LevelDB) in Node
+const db = new PouchDB<ResultDoc | NicknameDoc>(path.join(dataPath, 'db'));
 
 await db.createIndex({ index: { fields: ['timestamp'] } });
 await db.createIndex({ index: { fields: ['type', 'guildId', 'nickname'] } });

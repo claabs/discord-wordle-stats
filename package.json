@@ -5,7 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node --experimental-transform-types src/index.ts",
-    "docker:run": "docker run --rm -ti --init -v $(pwd)/config:/app/config --env-file .env discord-wordle-stats",
+    "docker:run": "docker run --rm -ti --init -v $(pwd)/data:/data --env-file .env discord-wordle-stats",
     "docker:build": "docker build -t discord-wordle-stats ."
   },
   "author": "",

@@ -106,7 +106,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
   const clearCache = interaction.options.getBoolean('clear-cache', false) ?? false;
 
   await interaction.deferReply({
-    flags: MessageFlags.Ephemeral,
+    // flags: MessageFlags.Ephemeral,
   });
 
   const lastMessageTimestamp = clearCache ? 0 : await getLatestTimestamp(guildId, channel.id);
