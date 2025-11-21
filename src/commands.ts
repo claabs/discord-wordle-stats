@@ -25,6 +25,14 @@ export const statsCommand = new SlashCommandBuilder()
         'Number of days back the message history should be read. Defaults to read until 2025-05-01.',
       )
       .setRequired(false),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName('fail-score')
+      .setDescription(
+        'How many a points a failed Wordle attempt (X/6) should count as. Defaults to 7.',
+      )
+      .setRequired(false),
   );
 
 export const nicknameCommand = new SlashCommandBuilder()

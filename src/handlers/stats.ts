@@ -21,7 +21,7 @@ import type { Winner } from '../data/pouch.ts';
 
 const WORDLE_BOT_USER_ID = '1211781489931452447';
 // Points assigned for a failed Wordle attempt (X)
-const FAIL_SCORE = 7;
+const DEFAULT_FAIL_SCORE = 7;
 
 interface UserStats {
   sum: number;
@@ -37,7 +37,11 @@ interface ScoreResult {
   userStats: UserStats[];
 }
 
-async function calculateAverageScores(guildId: string, channelId: string): Promise<ScoreResult> {
+async function calculateAverageScores(
+  guildId: string,
+  channelId: string,
+  failScore: number,
+): Promise<ScoreResult> {
   const results = await getResults(guildId, channelId);
 
   const acc: Record<
@@ -58,7 +62,7 @@ async function calculateAverageScores(guildId: string, channelId: string): Promi
         userId = resolvedUserId ?? winner.nickname;
       }
       if (!userId) continue;
-      const score = winner.score === 'X' ? FAIL_SCORE : winner.score;
+      const score = winner.score === 'X' ? failScore : winner.score;
       const entry = acc[userId] ?? { sum: 0, count: 0, failCount: 0, isNickname };
       entry.sum += score;
       entry.count += 1;
@@ -92,6 +96,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
     interaction.channel;
 
   assertTextChannel(channel);
+  const channelId = channel.id;
 
   const ignoreCache = interaction.options.getBoolean('ignore-cache', false) ?? false;
 
@@ -99,12 +104,14 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
 
   if (historyDays !== null && historyDays < 0) throw new Error('history-days must be positive');
 
+  const failScore = interaction.options.getInteger('fail-score', false) ?? DEFAULT_FAIL_SCORE;
+
   await interaction.deferReply({
     flags: isDev ? MessageFlags.Ephemeral : undefined,
   });
 
   logger.info(
-    { clearCache: ignoreCache, historyDays, guildId, channelId: channel.id },
+    { clearCache: ignoreCache, historyDays, guildId, channelId },
     'Starting stats calculation',
   );
 
@@ -112,7 +119,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
     ? Date.now() - historyDays * 24 * 60 * 60 * 1000
     : new Date('2025-05-01').getTime();
 
-  const lastMessageTimestamp = ignoreCache ? 0 : await getLatestTimestamp(guildId, channel.id);
+  const lastMessageTimestamp = ignoreCache ? 0 : await getLatestTimestamp(guildId, channelId);
 
   let lastProcessedMessage: string | undefined;
   let processedMessagesCount = 0;
@@ -188,7 +195,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
       // eslint-disable-next-line no-await-in-loop
       await addResult({
         guildId,
-        channelId: channel.id,
+        channelId,
         timestamp: msg.createdTimestamp,
         content,
         winners,
@@ -200,10 +207,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
     }
   }
 
-  logger.debug(
-    { guildId, channelId: channel.id, processedMessagesCount },
-    'Processed new Wordle results',
-  );
+  logger.debug({ guildId, channelId, processedMessagesCount }, 'Processed new Wordle results');
 
   const allResultNicknames = await getUniqueNicknamesFromResults(guildId);
 
@@ -231,7 +235,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
     }
   }
 
-  const scores = await calculateAverageScores(guildId, channel.id);
+  const scores = await calculateAverageScores(guildId, channelId, failScore);
 
   const sortedUserStats = scores.userStats.sort((a, b) => a.average - b.average);
 
@@ -243,7 +247,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
   });
 
   const contentLines = [
-    `Stats for ${scores.resultsCount} games (fails score as ${FAIL_SCORE}):`,
+    `Stats for ${scores.resultsCount} games in <#${channelId}> (fails score as ${failScore}):`,
     ...statsLines,
   ];
 

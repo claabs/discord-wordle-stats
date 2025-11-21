@@ -12,7 +12,6 @@ A Discord bot that calculates statistics for the official Discord Wordle applica
 
 - Doesn't support multiple users using the same nicknames
 - It just parses the results message, so incomplete games count as an "X" (a fail)
-- Fails are scored as a 7
 
 ## Quick Start (Docker)
 
@@ -58,7 +57,7 @@ services:
 
 - Improved logging, child loggers
 - Refactor terrible handler code
-- Cleanup eslint ignores
-- Configurable fail score
+- Resolve eslint ignores
 - Optional trigger when Wordle bot posts results message
 - Add screenshots
+- Improve leaderboard formatting (profile images, emojis, podium)
