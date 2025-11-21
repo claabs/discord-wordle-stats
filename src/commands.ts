@@ -1,6 +1,6 @@
 import { ChannelType, REST, Routes, SlashCommandBuilder } from 'discord.js';
 
-import { botToken, devGuildId } from './config.ts';
+import { botToken } from './config.ts';
 
 export const statsCommand = new SlashCommandBuilder()
   .setName('stats')
@@ -58,11 +58,5 @@ const commands = [statsCommand.toJSON(), nicknameCommand.toJSON()];
 
 export async function deployCommands(clientId: string): Promise<void> {
   const rest = new REST().setToken(botToken);
-  if (devGuildId) {
-    await rest.put(Routes.applicationGuildCommands(clientId, devGuildId), {
-      body: commands,
-    });
-  } else {
-    await rest.put(Routes.applicationCommands(clientId), { body: commands });
-  }
+  await rest.put(Routes.applicationCommands(clientId), { body: commands });
 }

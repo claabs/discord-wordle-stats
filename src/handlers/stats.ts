@@ -13,6 +13,7 @@ import {
 } from '../data/pouch.ts';
 import { logger } from '../logger.ts';
 import { assertGuild, assertTextChannel } from './utils.ts';
+import { isDev } from '../config.ts';
 
 import type { ChannelType, ChatInputCommandInteraction, GuildMember } from 'discord.js';
 
@@ -99,7 +100,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
   if (historyDays !== null && historyDays < 0) throw new Error('history-days must be positive');
 
   await interaction.deferReply({
-    flags: MessageFlags.Ephemeral,
+    flags: isDev ? MessageFlags.Ephemeral : undefined,
   });
 
   logger.info(

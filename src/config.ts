@@ -5,7 +5,7 @@ if (!process.env.BOT_TOKEN) {
 }
 export const botToken = process.env.BOT_TOKEN;
 
-export const devGuildId = process.env.DEV_GUILD_ID;
+export const isDev = process.env.NODE_ENV === 'development';
 
 export const ownerId = process.env.OWNER_ID;
 
