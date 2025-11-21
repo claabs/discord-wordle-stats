@@ -42,15 +42,27 @@ export interface NicknameDoc {
   userId: string;
 }
 
-const db = new PouchDB<ResultDoc | NicknameDoc>(path.join(dataPath, 'db'));
+export interface LastMessageDoc {
+  _id: string;
+  _rev?: string;
+  type: 'lastMessage';
+  guildId: string;
+  channelId: string;
+  messageId: string;
+}
 
-await db.createIndex({ index: { fields: ['timestamp'] } });
+const db = new PouchDB<ResultDoc | NicknameDoc | LastMessageDoc>(path.join(dataPath, 'db'));
+
 await db.createIndex({ index: { fields: ['type', 'guildId', 'nickname'] } });
 await db.createIndex({ index: { fields: ['type', 'guildId', 'channelId'] } });
 
 function nickId(guildId: string, nickname: string): string {
   // encode nickname to be safe in _id
-  return `nick:${guildId}:${encodeURIComponent(nickname)}`;
+  return `nickname:${guildId}:${encodeURIComponent(nickname)}`;
+}
+
+function lastMessageId(guildId: string, channelId: string): string {
+  return `lastMessage:${guildId}:${channelId}`;
 }
 
 // Nickname helpers
@@ -120,19 +132,31 @@ export async function addResult(result: Omit<ResultDoc, '_id' | 'type'>): Promis
   await db.put(doc, { force: true });
 }
 
-export async function getLatestTimestamp(guildId: string, channelId: string): Promise<number> {
-  const res = (await db.find({
-    selector: { type: 'result', guildId, channelId, timestamp: { $exists: true } },
-    fields: ['timestamp'],
-    sort: [{ timestamp: 'desc' }],
-    limit: 1,
-  })) as PouchDB.Find.FindResponse<Pick<ResultDoc, 'timestamp'>>;
-  if (res.warning) {
-    logger.warn({ warning: res.warning }, 'getLatestTimestamp warning');
+export async function getLastMessageId(
+  guildId: string,
+  channelId: string,
+): Promise<string | undefined> {
+  const id = lastMessageId(guildId, channelId);
+  try {
+    const res = await db.get<LastMessageDoc>(id);
+    return res.messageId;
+  } catch {
+    return undefined;
   }
-  const doc = res.docs[0];
-  if (!doc) return 0;
-  return doc.timestamp;
+}
+export async function setLastMessageId(
+  guildId: string,
+  channelId: string,
+  messageId: string,
+): Promise<void> {
+  const id = lastMessageId(guildId, channelId);
+  const doc: LastMessageDoc = { _id: id, type: 'lastMessage', guildId, channelId, messageId };
+  const existing = await db.get<LastMessageDoc>(id).catch(() => undefined);
+  if (existing) {
+    // eslint-disable-next-line no-underscore-dangle
+    doc._rev = existing._rev;
+  }
+  await db.put(doc, { force: true });
 }
 
 export async function getUniqueNicknamesFromResults(guildId: string): Promise<Set<string>> {

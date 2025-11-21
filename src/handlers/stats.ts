@@ -8,13 +8,19 @@ import {
   addNickname,
   addResult,
   getAllNicknames,
-  getLatestTimestamp,
+  getLastMessageId,
   getResults,
   getUniqueNicknamesFromResults,
   getUserIdFromNickname,
+  setLastMessageId,
 } from '../data/pouch.ts';
 
-import type { ChannelType, ChatInputCommandInteraction, GuildMember } from 'discord.js';
+import type {
+  ChannelType,
+  ChatInputCommandInteraction,
+  FetchMessagesOptions,
+  GuildMember,
+} from 'discord.js';
 import type { Logger } from 'pino';
 
 import type { Winner } from '../data/pouch.ts';
@@ -35,6 +41,49 @@ interface UserStats {
 interface ScoreResult {
   resultsCount: number;
   userStats: UserStats[];
+}
+
+/**
+ * parse lines like: "👑 3/6: @nobody" or "4/6: @whatever @whatsup"
+ */
+function parseWinners(content: string): Winner[] {
+  const winners: Winner[] = [];
+  const lines = content.split(/\r?\n/);
+
+  for (const line of lines) {
+    const scoreLineMatch = /^(?:\s*👑\s*)?(\d+|X)\/6:\s*(.+)$/.exec(line);
+    if (!scoreLineMatch) continue;
+    const scoreStr = scoreLineMatch[1];
+    const score: number | 'X' = scoreStr === 'X' ? 'X' : Number(scoreStr);
+    const playerList = scoreLineMatch[2];
+
+    if (!playerList) continue;
+
+    // collect mention tokens that appear in this line (they include ids)
+    const mentionRegex = /<@!?(\d+)>/g;
+    const rawMentionList = Array.from(playerList.matchAll(mentionRegex), (m) => m[1]);
+    const mentionList = rawMentionList.filter((id): id is string => !!id);
+    winners.push(...mentionList.map((id) => ({ id, score })));
+
+    // Remove raw mention tokens (<@...>) from list so they don't interfere
+    const remaining = (playerList ?? '').replace(/<@!?\d+>/g, '').trim();
+
+    // Extract substrings that start with '@' up to the next '@' (allow spaces)
+    const atGapRegex = /@([^@]+)/g;
+    const nicknameMatch = atGapRegex.exec(remaining);
+    const nicknameList = nicknameMatch?.slice(1) ?? [];
+    winners.push(
+      ...nicknameList
+        .map((n) => n.trim())
+        .filter(Boolean)
+        .map((nickname) => ({ nickname, score })),
+    );
+  }
+  return winners;
+}
+
+function maxString(a: string, b: string): string {
+  return a > b ? a : b;
 }
 
 async function calculateAverageScores(
@@ -118,92 +167,75 @@ export async function handleStats(
     ? Date.now() - historyDays * 24 * 60 * 60 * 1000
     : new Date('2025-05-01').getTime();
 
-  const lastMessageTimestamp = ignoreCache ? 0 : await getLatestTimestamp(guildId, channelId);
+  let lastMessageId = await getLastMessageId(guildId, channelId);
 
   let lastProcessedMessage: string | undefined;
   let processedMessagesCount = 0;
   let continueFetchingMessages = true;
 
-  logger.debug({ lastMessageTimestamp }, 'Fetching message history');
+  /**
+   * If ignoreCache is false and we have a lastMessage, process the message history chronologically until we run out of new messages
+   * Else, process the message history in reverse chronological order until the minDateTimestamp
+   */
 
-  // We'll page through history in batches of 100 until we reach the last stored timestamp
+  const fetchChronologically = !ignoreCache && !!lastMessageId;
+  if (fetchChronologically) lastProcessedMessage = lastMessageId;
+
+  logger.debug({ lastMessageId, fetchChronologically }, 'Fetching message history');
+
+  const BATCH_SIZE = 100;
   while (continueFetchingMessages) {
-    // fetch messages; if beforeId is set, fetch messages before that id
-    // use 100 per batch
+    const fetchOptions: FetchMessagesOptions = {
+      limit: BATCH_SIZE,
+    };
+    if (fetchChronologically) {
+      fetchOptions.after = lastProcessedMessage;
+    } else {
+      fetchOptions.before = lastProcessedMessage;
+    }
+
     // eslint-disable-next-line no-await-in-loop
-    const messageBatch = await channel.messages.fetch({ limit: 100, before: lastProcessedMessage });
-    if (!messageBatch || messageBatch.size === 0) {
+    const messageBatch = await channel.messages.fetch(fetchOptions);
+    if (messageBatch.size < BATCH_SIZE) {
       continueFetchingMessages = false;
     }
 
     for (const msg of messageBatch.values()) {
-      // stop when we hit a message older-or-equal to last stored timestamp
-      if (msg.createdTimestamp <= lastMessageTimestamp || msg.createdTimestamp < minDateTimestamp) {
-        // we've reached stored data; stop processing
+      lastMessageId = lastMessageId ? maxString(msg.id, lastMessageId) : msg.id;
+      lastProcessedMessage = msg.id;
+
+      // when processing reverse-chronological, stop when we reach the min timestamp
+      if (!fetchChronologically && msg.createdTimestamp < minDateTimestamp) {
         continueFetchingMessages = false;
         break;
       }
 
-      // filter messages from the Wordle bot id and containing the expected marker
-      if (msg.author.id !== WORDLE_BOT_USER_ID) {
-        lastProcessedMessage = msg.id;
-        continue;
+      const { content } = msg;
+
+      if (
+        msg.author.id === WORDLE_BOT_USER_ID &&
+        content.includes("Here are yesterday's results")
+      ) {
+        const winners = parseWinners(content);
+
+        // eslint-disable-next-line no-await-in-loop
+        await addResult({
+          guildId,
+          channelId,
+          timestamp: msg.createdTimestamp,
+          content,
+          winners,
+          messageId: msg.id,
+        });
+
+        processedMessagesCount += 1;
       }
-      const content = msg.content ?? '';
-      if (!content.includes("Here are yesterday's results")) {
-        lastProcessedMessage = msg.id;
-        continue;
-      }
-
-      // parse lines like: "👑 3/6: @Nobody" or "4/6: @Batsy @wagcmassyla"
-      const lines = content.split(/\r?\n/);
-
-      const winners: Winner[] = [];
-
-      for (const line of lines) {
-        const scoreLineMatch = /^(?:\s*👑\s*)?(\d+|X)\/6:\s*(.+)$/.exec(line);
-        if (!scoreLineMatch) continue;
-        const scoreStr = scoreLineMatch[1];
-        const score: number | 'X' = scoreStr === 'X' ? 'X' : Number(scoreStr);
-        const playerList = scoreLineMatch[2];
-
-        if (!playerList) continue;
-
-        // collect mention tokens that appear in this line (they include ids)
-        const mentionRegex = /<@!?(\d+)>/g;
-        const rawMentionList = Array.from(playerList.matchAll(mentionRegex), (m) => m[1]);
-        const mentionList = rawMentionList.filter((id): id is string => !!id);
-        winners.push(...mentionList.map((id) => ({ id, score })));
-
-        // Remove raw mention tokens (<@...>) from list so they don't interfere
-        const remaining = (playerList ?? '').replace(/<@!?\d+>/g, '').trim();
-
-        // Extract substrings that start with '@' up to the next '@' (allow spaces)
-        const atGapRegex = /@([^@]+)/g;
-        const nicknameMatch = atGapRegex.exec(remaining);
-        const nicknameList = nicknameMatch?.slice(1) ?? [];
-        winners.push(
-          ...nicknameList
-            .map((n) => n.trim())
-            .filter(Boolean)
-            .map((nickname) => ({ nickname, score })),
-        );
-      }
-
-      // store the result using the message timestamp
-      // eslint-disable-next-line no-await-in-loop
-      await addResult({
-        guildId,
-        channelId,
-        timestamp: msg.createdTimestamp,
-        content,
-        winners,
-        messageId: msg.id,
-      });
-      lastProcessedMessage = msg.id;
-
-      processedMessagesCount += 1;
     }
+  }
+
+  if (lastMessageId) {
+    logger.debug({ channelId, lastMessageId }, 'Updating last processed message ID');
+    await setLastMessageId(guildId, channelId, lastMessageId);
   }
 
   logger.debug({ channelId, processedMessagesCount }, 'Processed new Wordle results');
