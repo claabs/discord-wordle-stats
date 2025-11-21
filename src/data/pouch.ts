@@ -5,7 +5,7 @@ import PouchDB from 'pouchdb';
 import PouchdbFind from 'pouchdb-find';
 
 import { dataPath } from '../config.ts';
-import { logger } from '../logger.ts';
+import { baseLogger as logger } from '../logger.ts';
 
 PouchDB.plugin(PouchdbFind);
 

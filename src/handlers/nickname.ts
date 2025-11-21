@@ -1,19 +1,24 @@
 /* eslint-disable no-restricted-syntax */
 import { MessageFlags } from 'discord.js';
 
-import { assertGuild, assertModerator } from './utils.ts';
+import { assertModerator } from './utils.ts';
 import { addNickname, getAllNicknames, removeNickname } from '../data/pouch.ts';
 
 import type { ChatInputCommandInteraction } from 'discord.js';
+import type { Logger } from 'pino';
 
-export async function handleAddNickname(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleAddNickname(
+  interaction: ChatInputCommandInteraction<'cached' | 'raw'>,
+  logger: Logger,
+): Promise<void> {
   const { guildId } = interaction;
 
-  assertGuild(guildId);
   assertModerator(interaction);
 
   const user = interaction.options.getUser('user', true);
   const nickname = interaction.options.getString('nickname', true);
+
+  logger.info({ nickname, userId: user.id }, 'Adding nickname');
 
   await addNickname(guildId, nickname, user.id);
   await interaction.reply({
@@ -23,14 +28,16 @@ export async function handleAddNickname(interaction: ChatInputCommandInteraction
 }
 
 export async function handleRemoveNickname(
-  interaction: ChatInputCommandInteraction,
+  interaction: ChatInputCommandInteraction<'cached' | 'raw'>,
+  logger: Logger,
 ): Promise<void> {
   const { guildId } = interaction;
 
-  assertGuild(guildId);
   assertModerator(interaction);
 
   const nickname = interaction.options.getString('nickname', true);
+
+  logger.info({ nickname }, 'Removing nickname');
   const removed = await removeNickname(guildId, nickname);
   if (removed) {
     await interaction.reply({
@@ -45,9 +52,13 @@ export async function handleRemoveNickname(
   }
 }
 
-export async function handleListNicknames(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleListNicknames(
+  interaction: ChatInputCommandInteraction<'cached' | 'raw'>,
+  logger: Logger,
+): Promise<void> {
   const { guildId } = interaction;
-  assertGuild(guildId);
+
+  logger.info('Listing nicknames');
 
   const all = await getAllNicknames(guildId);
   const entries = Object.entries(all);

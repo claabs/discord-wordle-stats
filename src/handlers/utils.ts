@@ -24,12 +24,6 @@ export function assertModerator(interaction: ChatInputCommandInteraction): void 
   if (!isModerator) throw new Error('You do not have permission to use this command');
 }
 
-export function assertGuild(guildId: string | null): asserts guildId is string {
-  if (!guildId) {
-    throw new Error('This command must be used in a guild');
-  }
-}
-
 export function assertTextChannel(
   channel: TextBasedChannel | null,
 ): asserts channel is TextChannel {

@@ -9,9 +9,10 @@ import {
   handleRemoveNickname,
 } from './handlers/nickname.ts';
 import { handleStats } from './handlers/stats.ts';
-import { logger } from './logger.ts';
+import { baseLogger } from './logger.ts';
 
 import type { ChatInputCommandInteraction } from 'discord.js';
+import type { Logger } from 'pino';
 
 // Create a new client instance
 const client = new Client({
@@ -24,21 +25,28 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, async (readyClient) => {
-  logger.info({ nickname: readyClient.user.tag }, 'Client ready');
+  baseLogger.info({ nickname: readyClient.user.tag }, 'Client ready');
   const inviteUrl = client.generateInvite({
     scopes: [OAuth2Scopes.Bot, OAuth2Scopes.ApplicationsCommands],
     permissions: ['ViewChannel', 'ReadMessageHistory'],
   });
-  logger.info({ inviteUrl }, 'Invite URL');
+  baseLogger.info({ inviteUrl }, 'Invite URL');
   await deployCommands(readyClient.user.id);
 });
 
-async function errorWrap(
-  handler: (interaction: ChatInputCommandInteraction) => Promise<void>,
+async function handlerWrap(
+  handler: (
+    interaction: ChatInputCommandInteraction<'cached' | 'raw'>,
+    logger: Logger,
+  ) => Promise<void>,
   interaction: ChatInputCommandInteraction,
 ) {
+  const logger = baseLogger.child({ guildId: interaction.guildId, interactionId: interaction.id });
   try {
-    await handler(interaction);
+    if (!interaction.inGuild()) {
+      throw new Error('This command can only be used in a guild');
+    }
+    await handler(interaction, logger);
   } catch (err) {
     logger.error({ err }, 'Error handling interaction');
     const content =
@@ -59,12 +67,12 @@ async function errorWrap(
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === statsCommand.name) {
-      await errorWrap(handleStats, interaction);
+      await handlerWrap(handleStats, interaction);
     } else if (interaction.commandName === nicknameCommand.name) {
       const sub = interaction.options.getSubcommand();
-      if (sub === 'add') await errorWrap(handleAddNickname, interaction);
-      else if (sub === 'remove') await errorWrap(handleRemoveNickname, interaction);
-      else if (sub === 'list') await errorWrap(handleListNicknames, interaction);
+      if (sub === 'add') await handlerWrap(handleAddNickname, interaction);
+      else if (sub === 'remove') await handlerWrap(handleRemoveNickname, interaction);
+      else if (sub === 'list') await handlerWrap(handleListNicknames, interaction);
     }
   }
 });

@@ -2,6 +2,8 @@
 /* eslint-disable no-restricted-syntax */
 import { MessageFlags } from 'discord.js';
 
+import { assertTextChannel } from './utils.ts';
+import { isDev } from '../config.ts';
 import {
   addNickname,
   addResult,
@@ -11,11 +13,9 @@ import {
   getUniqueNicknamesFromResults,
   getUserIdFromNickname,
 } from '../data/pouch.ts';
-import { logger } from '../logger.ts';
-import { assertGuild, assertTextChannel } from './utils.ts';
-import { isDev } from '../config.ts';
 
 import type { ChannelType, ChatInputCommandInteraction, GuildMember } from 'discord.js';
+import type { Logger } from 'pino';
 
 import type { Winner } from '../data/pouch.ts';
 
@@ -86,9 +86,11 @@ async function calculateAverageScores(
   };
 }
 
-export async function handleStats(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleStats(
+  interaction: ChatInputCommandInteraction<'cached' | 'raw'>,
+  logger: Logger,
+): Promise<void> {
   const { guildId } = interaction;
-  assertGuild(guildId);
 
   // get the configured channel from the command
   const channel =
@@ -110,10 +112,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
     flags: isDev ? MessageFlags.Ephemeral : undefined,
   });
 
-  logger.info(
-    { clearCache: ignoreCache, historyDays, guildId, channelId },
-    'Starting stats calculation',
-  );
+  logger.info({ clearCache: ignoreCache, historyDays, channelId }, 'Starting stats calculation');
 
   const minDateTimestamp = historyDays
     ? Date.now() - historyDays * 24 * 60 * 60 * 1000
@@ -207,7 +206,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
     }
   }
 
-  logger.debug({ guildId, channelId, processedMessagesCount }, 'Processed new Wordle results');
+  logger.debug({ channelId, processedMessagesCount }, 'Processed new Wordle results');
 
   const allResultNicknames = await getUniqueNicknamesFromResults(guildId);
 
