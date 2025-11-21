@@ -14,8 +14,16 @@ export const statsCommand = new SlashCommandBuilder()
   )
   .addBooleanOption((option) =>
     option
-      .setName('clear-cache')
+      .setName('ignore-cache')
       .setDescription('If true, forces reprocessing of all messages in the channel')
+      .setRequired(false),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName('history-days')
+      .setDescription(
+        'Number of days back the message history should be read. Defaults to read until 2025-05-01.',
+      )
       .setRequired(false),
   );
 

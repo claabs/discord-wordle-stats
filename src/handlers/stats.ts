@@ -1,6 +1,6 @@
 /* eslint-disable no-continue */
 /* eslint-disable no-restricted-syntax */
-import { MessageFlags, TextChannel } from 'discord.js';
+import { MessageFlags } from 'discord.js';
 
 import {
   addNickname,
@@ -92,13 +92,26 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
 
   assertTextChannel(channel);
 
-  const clearCache = interaction.options.getBoolean('clear-cache', false) ?? false;
+  const ignoreCache = interaction.options.getBoolean('ignore-cache', false) ?? false;
+
+  const historyDays = interaction.options.getInteger('history-days', false);
+
+  if (historyDays !== null && historyDays < 0) throw new Error('history-days must be positive');
 
   await interaction.deferReply({
-    // flags: MessageFlags.Ephemeral,
+    flags: MessageFlags.Ephemeral,
   });
 
-  const lastMessageTimestamp = clearCache ? 0 : await getLatestTimestamp(guildId, channel.id);
+  logger.info(
+    { clearCache: ignoreCache, historyDays, guildId, channelId: channel.id },
+    'Starting stats calculation',
+  );
+
+  const minDateTimestamp = historyDays
+    ? Date.now() - historyDays * 24 * 60 * 60 * 1000
+    : new Date('2025-05-01').getTime();
+
+  const lastMessageTimestamp = ignoreCache ? 0 : await getLatestTimestamp(guildId, channel.id);
 
   let lastProcessedMessage: string | undefined;
   let processedMessagesCount = 0;
@@ -118,7 +131,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
 
     for (const msg of messageBatch.values()) {
       // stop when we hit a message older-or-equal to last stored timestamp
-      if (msg.createdTimestamp <= lastMessageTimestamp) {
+      if (msg.createdTimestamp <= lastMessageTimestamp || msg.createdTimestamp < minDateTimestamp) {
         // we've reached stored data; stop processing
         continueFetchingMessages = false;
         break;
