@@ -10,7 +10,6 @@ import {
   getAllNicknames,
   getLastMessageId,
   getResults,
-  getUniqueNicknamesFromResults,
   getUserIdFromNickname,
   setLastMessageId,
 } from '../data/pouch.ts';
@@ -20,10 +19,11 @@ import type {
   ChatInputCommandInteraction,
   FetchMessagesOptions,
   GuildMember,
+  TextChannel,
 } from 'discord.js';
 import type { Logger } from 'pino';
 
-import type { Winner } from '../data/pouch.ts';
+import type { ResultDoc, Winner } from '../data/pouch.ts';
 
 const WORDLE_BOT_USER_ID = '1211781489931452447';
 // Points assigned for a failed Wordle attempt (X)
@@ -36,11 +36,6 @@ interface UserStats {
   average: number;
   userIdOrNickname: string;
   isNickname: boolean;
-}
-
-interface ScoreResult {
-  resultsCount: number;
-  userStats: UserStats[];
 }
 
 /**
@@ -70,8 +65,8 @@ function parseWinners(content: string): Winner[] {
 
     // Extract substrings that start with '@' up to the next '@' (allow spaces)
     const atGapRegex = /@([^@]+)/g;
-    const nicknameMatch = atGapRegex.exec(remaining);
-    const nicknameList = nicknameMatch?.slice(1) ?? [];
+    const rawNicknameList = Array.from(remaining.matchAll(atGapRegex), (m) => m[1]);
+    const nicknameList = rawNicknameList.filter((id): id is string => !!id);
     winners.push(
       ...nicknameList
         .map((n) => n.trim())
@@ -86,13 +81,53 @@ function maxString(a: string, b: string): string {
   return a > b ? a : b;
 }
 
-async function calculateAverageScores(
+async function matchNicknames(
+  results: ResultDoc[],
   guildId: string,
-  channelId: string,
-  failScore: number,
-): Promise<ScoreResult> {
-  const results = await getResults(guildId, channelId);
+  channel: TextChannel,
+): Promise<string[]> {
+  const allResultNicknames = new Set<string>();
+  for (const result of results) {
+    const winners = result.winners ?? [];
+    for (const w of winners) {
+      if ('nickname' in w) {
+        allResultNicknames.add(w.nickname);
+      }
+    }
+  }
+  const allStoredNicknames = new Set<string>(Object.keys(await getAllNicknames(guildId)));
+  const unmatchedNicknames = allResultNicknames.difference(allStoredNicknames);
 
+  const unresolvedNicknames: string[] = [];
+
+  if (unmatchedNicknames.size > 0) {
+    for (const nickname of Array.from(unmatchedNicknames)) {
+      let matchedMember: GuildMember | undefined;
+      // eslint-disable-next-line no-await-in-loop
+      const queryResults = await channel.guild.members.fetch({ query: nickname, limit: 10 });
+      for (const member of queryResults.values()) {
+        if (member.nickname === nickname || member.displayName === nickname) {
+          matchedMember = member;
+          break;
+        }
+      }
+
+      if (matchedMember) {
+        // eslint-disable-next-line no-await-in-loop
+        await addNickname(guildId, nickname, matchedMember.id);
+      } else {
+        unresolvedNicknames.push(nickname);
+      }
+    }
+  }
+  return unresolvedNicknames;
+}
+
+async function calculateAverageScores(
+  results: ResultDoc[],
+  guildId: string,
+  failScore: number,
+): Promise<UserStats[]> {
   const acc: Record<
     string,
     { sum: number; count: number; failCount: number; isNickname: boolean }
@@ -129,10 +164,7 @@ async function calculateAverageScores(
     isNickname: v.isNickname,
   }));
 
-  return {
-    resultsCount: Object.keys(results).length,
-    userStats,
-  };
+  return userStats;
 }
 
 export async function handleStats(
@@ -240,35 +272,13 @@ export async function handleStats(
 
   logger.debug({ channelId, processedMessagesCount }, 'Processed new Wordle results');
 
-  const allResultNicknames = await getUniqueNicknamesFromResults(guildId);
+  const results = await getResults(guildId, channelId);
 
-  const allStoredNicknames = new Set<string>(Object.keys(await getAllNicknames(guildId)));
-  const unmatchedNicknames = allResultNicknames.difference(allStoredNicknames);
+  const unresolvedNicknames = await matchNicknames(results, guildId, channel);
 
-  const unresolvedNicknames: string[] = [];
+  const userStats = await calculateAverageScores(results, guildId, failScore);
 
-  if (unmatchedNicknames.size > 0) {
-    for (const nickname of Array.from(unmatchedNicknames)) {
-      let matchedMember: GuildMember | undefined;
-      for (const member of channel.members.values()) {
-        if (member.nickname === nickname || member.displayName === nickname) {
-          matchedMember = member;
-          break;
-        }
-      }
-
-      if (matchedMember) {
-        // eslint-disable-next-line no-await-in-loop
-        await addNickname(guildId, nickname, matchedMember.id);
-      } else {
-        unresolvedNicknames.push(nickname);
-      }
-    }
-  }
-
-  const scores = await calculateAverageScores(guildId, channelId, failScore);
-
-  const sortedUserStats = scores.userStats.sort((a, b) => a.average - b.average);
+  const sortedUserStats = userStats.sort((a, b) => a.average - b.average);
 
   const statsLines = sortedUserStats.map((stats, index) => {
     const rank = index + 1;
@@ -278,7 +288,7 @@ export async function handleStats(
   });
 
   const contentLines = [
-    `Stats for ${scores.resultsCount} games in <#${channelId}> (fails score as ${failScore}):`,
+    `Stats for ${results.length} games in <#${channelId}> (fails score as ${failScore}):`,
     ...statsLines,
   ];
 

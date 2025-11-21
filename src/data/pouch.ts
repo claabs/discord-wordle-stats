@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 import path from 'node:path';
 
 import PouchDB from 'pouchdb';
@@ -157,30 +156,6 @@ export async function setLastMessageId(
     doc._rev = existing._rev;
   }
   await db.put(doc, { force: true });
-}
-
-export async function getUniqueNicknamesFromResults(guildId: string): Promise<Set<string>> {
-  // Only fetch results that contain at least one winner with a `nickname`.
-  const res = (await db.find({
-    selector: { type: 'result', guildId },
-    fields: ['winners'],
-    limit: 5000,
-  })) as PouchDB.Find.FindResponse<Pick<ResultDoc, 'winners'>>;
-  if (res.warning) {
-    logger.warn({ warning: res.warning }, 'getUniqueNicknamesFromResults warning');
-  }
-
-  const set = new Set<string>();
-  for (const d of res.docs) {
-    const winners = d.winners ?? [];
-    for (const w of winners) {
-      if ('nickname' in w) {
-        set.add(w.nickname);
-      }
-    }
-  }
-
-  return set;
 }
 
 export async function getResults(guildId: string, channelId: string): Promise<ResultDoc[]> {

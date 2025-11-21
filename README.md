@@ -55,8 +55,7 @@ services:
 
 ## To Do
 
-- Improved logging, child loggers
-- Refactor terrible handler code
+- Add bulk reads/writes
 - Resolve eslint ignores
 - Optional trigger when Wordle bot posts results message
 - Add screenshots
