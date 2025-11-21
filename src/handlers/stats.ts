@@ -12,6 +12,7 @@ import {
   getUserIdFromNickname,
 } from '../data/pouch.ts';
 import { logger } from '../logger.ts';
+import { assertGuild, assertTextChannel } from './utils.ts';
 
 import type { ChannelType, ChatInputCommandInteraction, GuildMember } from 'discord.js';
 
@@ -82,26 +83,14 @@ async function calculateAverageScores(guildId: string, channelId: string): Promi
 
 export async function handleStats(interaction: ChatInputCommandInteraction): Promise<void> {
   const { guildId } = interaction;
-  if (!guildId) {
-    await interaction.reply({
-      content: 'This command must be used in a guild.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  assertGuild(guildId);
 
   // get the configured channel from the command
   const channel =
     interaction.options.getChannel<ChannelType.GuildText>('wordle-channel', false) ??
     interaction.channel;
 
-  if (!channel || !(channel instanceof TextChannel)) {
-    await interaction.reply({
-      content: 'No channel specified and could not determine current channel.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  assertTextChannel(channel);
 
   const clearCache = interaction.options.getBoolean('clear-cache', false) ?? false;
 

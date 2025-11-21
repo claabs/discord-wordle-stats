@@ -60,7 +60,6 @@ services:
 - Refactor terrible handler code
 - Add backstop to message history scrape (https://www.npmjs.com/package/parse-duration)
 - Cleanup eslint ignores
-- Universal error handler for interactions
 - Configurable fail score
 - Fix clear cache for stats
 - Optional trigger when Wordle bot posts results message

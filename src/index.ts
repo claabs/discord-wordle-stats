@@ -1,5 +1,5 @@
 // Require the necessary discord.js classes
-import { Client, Events, GatewayIntentBits, OAuth2Scopes } from 'discord.js';
+import { Client, Events, GatewayIntentBits, MessageFlags, OAuth2Scopes } from 'discord.js';
 
 import { deployCommands, nicknameCommand, statsCommand } from './commands.ts';
 import { botToken } from './config.ts';
@@ -10,6 +10,8 @@ import {
 } from './handlers/nickname.ts';
 import { handleStats } from './handlers/stats.ts';
 import { logger } from './logger.ts';
+
+import type { ChatInputCommandInteraction } from 'discord.js';
 
 // Create a new client instance
 const client = new Client({
@@ -31,15 +33,38 @@ client.once(Events.ClientReady, async (readyClient) => {
   await deployCommands(readyClient.user.id);
 });
 
+async function errorWrap(
+  handler: (interaction: ChatInputCommandInteraction) => Promise<void>,
+  interaction: ChatInputCommandInteraction,
+) {
+  try {
+    await handler(interaction);
+  } catch (err) {
+    logger.error({ err }, 'Error handling interaction');
+    const content =
+      err instanceof Error ? err.message : 'There was an error while executing this command!';
+    if (interaction.deferred) {
+      await interaction.editReply({
+        content,
+      });
+    } else {
+      await interaction.reply({
+        content,
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
+}
+
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === statsCommand.name) {
-      await handleStats(interaction);
+      await errorWrap(handleStats, interaction);
     } else if (interaction.commandName === nicknameCommand.name) {
       const sub = interaction.options.getSubcommand();
-      if (sub === 'add') await handleAddNickname(interaction);
-      else if (sub === 'remove') await handleRemoveNickname(interaction);
-      else if (sub === 'list') await handleListNicknames(interaction);
+      if (sub === 'add') await errorWrap(handleAddNickname, interaction);
+      else if (sub === 'remove') await errorWrap(handleRemoveNickname, interaction);
+      else if (sub === 'list') await errorWrap(handleListNicknames, interaction);
     }
   }
 });

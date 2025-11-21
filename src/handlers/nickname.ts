@@ -1,95 +1,45 @@
 /* eslint-disable no-restricted-syntax */
-import { GuildMember, MessageFlags } from 'discord.js';
+import { MessageFlags } from 'discord.js';
 
-import { ownerId } from '../config.ts';
+import { assertGuild, assertModerator } from './utils.ts';
 import { addNickname, getAllNicknames, removeNickname } from '../data/pouch.ts';
 
-import type {
-  APIInteractionGuildMember,
-  ChatInputCommandInteraction,
-  PermissionResolvable,
-} from 'discord.js';
-
-export function isModerator(member: GuildMember | APIInteractionGuildMember | null): boolean {
-  const MODERATOR_PERMISSIONS: PermissionResolvable[] = [
-    'Administrator',
-    'ManageChannels',
-    'KickMembers',
-    'MoveMembers',
-  ];
-  if (!member) return false;
-  if (member instanceof GuildMember) {
-    return MODERATOR_PERMISSIONS.some((p) => member.permissions.has(p)) || ownerId === member.id;
-  }
-  return true;
-}
+import type { ChatInputCommandInteraction } from 'discord.js';
 
 export async function handleAddNickname(interaction: ChatInputCommandInteraction): Promise<void> {
-  const { member, guildId } = interaction;
+  const { guildId } = interaction;
 
-  if (!isModerator(member)) {
-    await interaction.reply({
-      content: 'You do not have permission to use this command.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  if (!guildId) {
-    await interaction.reply({ content: 'This command must be used in a guild.', ephemeral: true });
-    return;
-  }
+  assertGuild(guildId);
+  assertModerator(interaction);
 
   const user = interaction.options.getUser('user', true);
   const nickname = interaction.options.getString('nickname', true);
 
-  try {
-    await addNickname(guildId, nickname, user.id);
-    await interaction.reply({
-      content: `Linked nickname "${nickname}" to <@${user.id}>.`,
-      flags: MessageFlags.Ephemeral,
-    });
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to add nickname', err);
-    await interaction.reply({
-      content: 'Failed to add nickname. See logs for details.',
-      flags: MessageFlags.Ephemeral,
-    });
-  }
+  await addNickname(guildId, nickname, user.id);
+  await interaction.reply({
+    content: `Linked nickname "${nickname}" to <@${user.id}>.`,
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 export async function handleRemoveNickname(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  const { member, guildId } = interaction;
+  const { guildId } = interaction;
 
-  if (!isModerator(member)) {
-    await interaction.reply({
-      content: 'You do not have permission to use this command.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  if (!guildId) {
-    await interaction.reply({ content: 'This command must be used in a guild.', ephemeral: true });
-    return;
-  }
+  assertGuild(guildId);
+  assertModerator(interaction);
 
   const nickname = interaction.options.getString('nickname', true);
-  try {
-    const removed = await removeNickname(guildId, nickname);
-    if (removed) {
-      await interaction.reply({ content: `Removed nickname "${nickname}".`, ephemeral: true });
-    } else {
-      await interaction.reply({ content: `Nickname "${nickname}" not found.`, ephemeral: true });
-    }
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to remove nickname', err);
+  const removed = await removeNickname(guildId, nickname);
+  if (removed) {
     await interaction.reply({
-      content: 'Failed to remove nickname. See logs for details.',
+      content: `Removed nickname "${nickname}".`,
+      flags: MessageFlags.Ephemeral,
+    });
+  } else {
+    await interaction.reply({
+      content: `Nickname "${nickname}" not found.`,
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -97,14 +47,7 @@ export async function handleRemoveNickname(
 
 export async function handleListNicknames(interaction: ChatInputCommandInteraction): Promise<void> {
   const { guildId } = interaction;
-
-  if (!guildId) {
-    await interaction.reply({
-      content: 'This command must be used in a guild.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  assertGuild(guildId);
 
   const all = await getAllNicknames(guildId);
   const entries = Object.entries(all);
