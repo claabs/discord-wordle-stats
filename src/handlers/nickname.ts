@@ -2,7 +2,7 @@
 import { MessageFlags } from 'discord.js';
 
 import { assertModerator } from './utils.ts';
-import { addNickname, getAllNicknames, removeNickname } from '../data/pouch.ts';
+import { addNickname, getAllNicknames, removeNickname } from '../data.ts';
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { Logger } from 'pino';

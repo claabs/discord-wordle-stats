@@ -5,25 +5,24 @@ import { MessageFlags } from 'discord.js';
 import { assertTextChannel } from './utils.ts';
 import { isDev } from '../config.ts';
 import {
-  addNickname,
-  addResult,
+  addNicknames,
+  addResults,
   getAllNicknames,
   getLastMessageId,
   getResults,
-  getUserIdFromNickname,
+  getUserIdsFromNicknames,
   setLastMessageId,
-} from '../data/pouch.ts';
+} from '../data.ts';
 
 import type {
   ChannelType,
   ChatInputCommandInteraction,
   FetchMessagesOptions,
-  GuildMember,
   TextChannel,
 } from 'discord.js';
 import type { Logger } from 'pino';
 
-import type { ResultDoc, Winner } from '../data/pouch.ts';
+import type { NicknameEntry, ResultDoc, Winner } from '../data.ts';
 
 const WORDLE_BOT_USER_ID = '1211781489931452447';
 // Points assigned for a failed Wordle attempt (X)
@@ -98,29 +97,36 @@ async function matchNicknames(
   const allStoredNicknames = new Set<string>(Object.keys(await getAllNicknames(guildId)));
   const unmatchedNicknames = allResultNicknames.difference(allStoredNicknames);
 
-  const unresolvedNicknames: string[] = [];
-
-  if (unmatchedNicknames.size > 0) {
-    for (const nickname of Array.from(unmatchedNicknames)) {
-      let matchedMember: GuildMember | undefined;
-      // eslint-disable-next-line no-await-in-loop
-      const queryResults = await channel.guild.members.fetch({ query: nickname, limit: 10 });
-      for (const member of queryResults.values()) {
-        if (member.nickname === nickname || member.displayName === nickname) {
-          matchedMember = member;
-          break;
-        }
-      }
-
-      if (matchedMember) {
-        // eslint-disable-next-line no-await-in-loop
-        await addNickname(guildId, nickname, matchedMember.id);
-      } else {
-        unresolvedNicknames.push(nickname);
-      }
-    }
+  if (unmatchedNicknames.size === 0) {
+    return [];
   }
-  return unresolvedNicknames;
+
+  const matchResults = await Promise.all(
+    Array.from(unmatchedNicknames).map(async (nickname) => {
+      // Try cached members first
+      let matchedMember = channel.members.find(
+        (member) => member.nickname === nickname || member.displayName === nickname,
+      );
+      if (matchedMember) return { newNicknameEntry: { nickname, userId: matchedMember.id } };
+
+      // Then query guild members
+      const queryResults = await channel.guild.members.fetch({ query: nickname, limit: 1 });
+      matchedMember = queryResults.find(
+        (member) => member.nickname === nickname || member.displayName === nickname,
+      );
+      if (matchedMember) return { newNicknameEntry: { nickname, userId: matchedMember.id } };
+
+      // No match found
+      return { unresolvedNickname: nickname };
+    }),
+  );
+
+  const newNicknameEntries = matchResults
+    .map((res) => res.newNicknameEntry)
+    .filter((e): e is NicknameEntry => !!e);
+  await addNicknames(guildId, newNicknameEntries);
+
+  return matchResults.map((match) => match.unresolvedNickname).filter((n): n is string => !!n);
 }
 
 async function calculateAverageScores(
@@ -133,6 +139,20 @@ async function calculateAverageScores(
     { sum: number; count: number; failCount: number; isNickname: boolean }
   > = {};
 
+  const unresolvedNicknames = new Set<string>();
+  for (const result of results) {
+    for (const winner of result.winners) {
+      if ('nickname' in winner) {
+        unresolvedNicknames.add(winner.nickname);
+      }
+    }
+  }
+
+  const nicknameToUserId: Record<string, string> = await getUserIdsFromNicknames(
+    guildId,
+    Array.from(unresolvedNicknames),
+  );
+
   for (const result of results) {
     for (const winner of result.winners) {
       let userId: string | undefined;
@@ -140,8 +160,7 @@ async function calculateAverageScores(
       if ('id' in winner) {
         userId = winner.id;
       } else if ('nickname' in winner) {
-        // eslint-disable-next-line no-await-in-loop
-        const resolvedUserId = await getUserIdFromNickname(guildId, winner.nickname);
+        const resolvedUserId = nicknameToUserId[winner.nickname];
         isNickname = !resolvedUserId;
         userId = resolvedUserId ?? winner.nickname;
       }
@@ -232,6 +251,7 @@ export async function handleStats(
       continueFetchingMessages = false;
     }
 
+    const newResults: Omit<ResultDoc, 'type'>[] = [];
     for (const msg of messageBatch.values()) {
       lastMessageId = lastMessageId ? maxString(msg.id, lastMessageId) : msg.id;
       lastProcessedMessage = msg.id;
@@ -250,8 +270,7 @@ export async function handleStats(
       ) {
         const winners = parseWinners(content);
 
-        // eslint-disable-next-line no-await-in-loop
-        await addResult({
+        newResults.push({
           guildId,
           channelId,
           timestamp: msg.createdTimestamp,
@@ -263,6 +282,8 @@ export async function handleStats(
         processedMessagesCount += 1;
       }
     }
+    // eslint-disable-next-line no-await-in-loop
+    await addResults(newResults);
   }
 
   if (lastMessageId) {

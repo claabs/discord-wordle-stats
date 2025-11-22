@@ -55,7 +55,6 @@ services:
 
 ## To Do
 
-- Add bulk reads/writes
 - Resolve eslint ignores
 - Optional trigger when Wordle bot posts results message
 - Add screenshots
