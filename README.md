@@ -69,6 +69,5 @@ services:
 
 ## To Do
 
-- Resolve eslint ignores
 - Optional trigger when Wordle bot posts results message
 - Improve leaderboard formatting (profile images, emojis, podium)

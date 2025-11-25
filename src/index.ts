@@ -47,10 +47,10 @@ async function handlerWrap(
       throw new Error('This command can only be used in a guild');
     }
     await handler(interaction, logger);
-  } catch (err) {
-    logger.error({ err }, 'Error handling interaction');
+  } catch (error) {
+    logger.error({ error }, 'Error handling interaction');
     const content =
-      err instanceof Error ? err.message : 'There was an error while executing this command!';
+      error instanceof Error ? error.message : 'There was an error while executing this command!';
     if (interaction.deferred) {
       await interaction.editReply({
         content,

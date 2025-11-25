@@ -4,6 +4,7 @@ import { includeIgnoreFile } from '@eslint/compat';
 import js from '@eslint/js';
 import { configs, plugins, rules } from 'eslint-config-airbnb-extended';
 import prettierPlugin from 'eslint-plugin-prettier/recommended';
+import eslintPluginUnicorn from 'eslint-plugin-unicorn';
 
 const gitignorePath = path.resolve('.', '.gitignore');
 
@@ -45,6 +46,18 @@ const typescriptConfig = [
   },
 ];
 
+const unicornConfig = [
+  eslintPluginUnicorn.configs.recommended,
+  {
+    rules: {
+      'unicorn/prefer-ternary': ['error', 'only-single-line'],
+      'unicorn/prefer-switch': 'off',
+      'unicorn/prevent-abbreviations': 'off',
+      'no-restricted-syntax': ['error', 'ForInStatement', 'LabeledStatement', 'WithStatement'],
+    },
+  },
+];
+
 export default [
   // Ignore .gitignore files/folder in eslint
   includeIgnoreFile(gitignorePath),
@@ -54,6 +67,7 @@ export default [
   ...nodeConfig,
   // TypeScript Config
   ...typescriptConfig,
+  ...unicornConfig,
   {
     name: 'models/config',
     files: ['src/models/**/*.ts'],

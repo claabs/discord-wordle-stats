@@ -74,7 +74,7 @@ export async function handleListNicknames(
   const startTokenUser = interaction.options.getUser('start-token', false);
 
   const userNicknames = await getAllUserNicknames(guildId, startTokenUser?.id);
-  if (!userNicknames.length) {
+  if (userNicknames.length === 0) {
     await interaction.reply({
       content: 'No nicknames stored for this guild.',
       flags: MessageFlags.Ephemeral,
@@ -84,7 +84,6 @@ export async function handleListNicknames(
 
   const contentLines: string[] = [];
 
-  // eslint-disable-next-line no-restricted-syntax
   for (const userNickname of userNicknames) {
     contentLines.push(formatUserNicknames(userNickname));
     if (contentLines.join('\n').length > 2000) {

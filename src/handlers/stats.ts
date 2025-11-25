@@ -1,5 +1,3 @@
-/* eslint-disable no-continue */
-/* eslint-disable no-restricted-syntax */
 import { MessageFlags } from 'discord.js';
 
 import { assertTextChannel } from './utils.ts';
@@ -41,39 +39,38 @@ interface UserStats {
  * parse lines like: "👑 3/6: @nobody" or "4/6: @whatever @whatsup"
  */
 function parseWinners(content: string): Winner[] {
-  const winners: Winner[] = [];
   const lines = content.split(/\r?\n/);
 
-  for (const line of lines) {
+  return lines.flatMap((line) => {
     const scoreLineMatch = /^(?:\s*👑\s*)?(\d+|X)\/6:\s*(.+)$/.exec(line);
-    if (!scoreLineMatch) continue;
+    if (!scoreLineMatch) return [];
     const scoreStr = scoreLineMatch[1];
     const score: number | 'X' = scoreStr === 'X' ? 'X' : Number(scoreStr);
     const playerList = scoreLineMatch[2];
 
-    if (!playerList) continue;
+    if (!playerList) return [];
 
     // collect mention tokens that appear in this line (they include ids)
     const mentionRegex = /<@!?(\d+)>/g;
     const rawMentionList = Array.from(playerList.matchAll(mentionRegex), (m) => m[1]);
     const mentionList = rawMentionList.filter((id): id is string => !!id);
-    winners.push(...mentionList.map((id) => ({ id, score })));
+    const lineWinners: Winner[] = mentionList.map((id) => ({ id, score }));
 
     // Remove raw mention tokens (<@...>) from list so they don't interfere
-    const remaining = (playerList ?? '').replace(/<@!?\d+>/g, '').trim();
+    const remaining = (playerList ?? '').replaceAll(/<@!?\d+>/g, '').trim();
 
     // Extract substrings that start with '@' up to the next '@' (allow spaces)
     const atGapRegex = /@([^@]+)/g;
     const rawNicknameList = Array.from(remaining.matchAll(atGapRegex), (m) => m[1]);
     const nicknameList = rawNicknameList.filter((id): id is string => !!id);
-    winners.push(
+    lineWinners.push(
       ...nicknameList
         .map((n) => n.trim())
         .filter(Boolean)
         .map((nickname) => ({ nickname, score })),
     );
-  }
-  return winners;
+    return lineWinners;
+  });
 }
 
 function maxString(a: string, b: string): string {
@@ -103,7 +100,7 @@ async function matchNicknames(
   }
 
   const matchResults = await Promise.all(
-    Array.from(unmatchedNicknames).map(async (nickname) => {
+    [...unmatchedNicknames].map(async (nickname) => {
       // Try cached members first
       let matchedMember = channel.members.find(
         (member) => member.nickname === nickname || member.displayName === nickname,
@@ -149,10 +146,9 @@ async function calculateAverageScores(
     }
   }
 
-  const nicknameToUserId: Record<string, string> = await getUserIdsFromNicknames(
-    guildId,
-    Array.from(unresolvedNicknames),
-  );
+  const nicknameToUserId: Record<string, string> = await getUserIdsFromNicknames(guildId, [
+    ...unresolvedNicknames,
+  ]);
 
   for (const result of results) {
     for (const winner of result.winners) {
@@ -165,13 +161,14 @@ async function calculateAverageScores(
         isNickname = !resolvedUserId;
         userId = resolvedUserId ?? winner.nickname;
       }
-      if (!userId) continue;
-      const score = winner.score === 'X' ? failScore : winner.score;
-      const entry = acc[userId] ?? { sum: 0, count: 0, failCount: 0, isNickname };
-      entry.sum += score;
-      entry.count += 1;
-      entry.failCount += winner.score === 'X' ? 1 : 0;
-      acc[userId] = entry;
+      if (userId) {
+        const score = winner.score === 'X' ? failScore : winner.score;
+        const entry = acc[userId] ?? { sum: 0, count: 0, failCount: 0, isNickname };
+        entry.sum += score;
+        entry.count += 1;
+        entry.failCount += winner.score === 'X' ? 1 : 0;
+        acc[userId] = entry;
+      }
     }
   }
 
@@ -236,6 +233,7 @@ export async function handleStats(
   logger.debug({ lastMessageId, fetchChronologically }, 'Fetching message history');
 
   const BATCH_SIZE = 100;
+  /* eslint-disable no-await-in-loop */
   while (continueFetchingMessages) {
     const fetchOptions: FetchMessagesOptions = {
       limit: BATCH_SIZE,
@@ -246,7 +244,6 @@ export async function handleStats(
       fetchOptions.before = lastProcessedMessage;
     }
 
-    // eslint-disable-next-line no-await-in-loop
     const messageBatch = await channel.messages.fetch(fetchOptions);
     if (messageBatch.size < BATCH_SIZE) {
       continueFetchingMessages = false;
@@ -283,9 +280,9 @@ export async function handleStats(
         processedMessagesCount += 1;
       }
     }
-    // eslint-disable-next-line no-await-in-loop
     await addResults(newResults);
   }
+  /* eslint-enable no-await-in-loop */
 
   if (lastMessageId) {
     logger.debug({ channelId, lastMessageId }, 'Updating last processed message ID');
@@ -300,7 +297,7 @@ export async function handleStats(
 
   const userStats = await calculateAverageScores(results, guildId, failScore);
 
-  const sortedUserStats = userStats.sort((a, b) => a.average - b.average);
+  const sortedUserStats = userStats.toSorted((a, b) => a.average - b.average);
 
   const statsLines = sortedUserStats.map((stats, index) => {
     const rank = index + 1;
@@ -314,7 +311,7 @@ export async function handleStats(
     ...statsLines,
   ];
 
-  if (unresolvedNicknames.length) {
+  if (unresolvedNicknames.length > 0) {
     contentLines.push(
       `These nicknames need to be manually matched: ${unresolvedNicknames.map((n) => `\`${n}\``).join(', ')}.`,
     );

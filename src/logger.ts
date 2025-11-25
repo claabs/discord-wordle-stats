@@ -9,5 +9,6 @@ export const baseLogger = pino({
   },
   level: logLevel,
   base: undefined,
+  errorKey: 'error',
   timestamp: stdTimeFunctions.isoTime,
 });

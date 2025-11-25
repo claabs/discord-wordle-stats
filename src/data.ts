@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 import path from 'node:path';
 
 import PouchDB from 'pouchdb';
@@ -70,7 +71,7 @@ export async function addNickname(
   userId: string,
 ): Promise<void> {
   const id = nicknameId(guildId, nickname);
-  const existing = await db.get<NicknameDoc>(id).catch(() => undefined);
+  const existing = await db.get<NicknameDoc>(id).catch(() => {});
   const baseDoc: PouchDB.Core.Document<NicknameDoc> = {
     _id: id,
     type: 'nickname',
@@ -79,7 +80,6 @@ export async function addNickname(
     userId,
   };
   if (existing) {
-    // eslint-disable-next-line no-underscore-dangle
     const doc: PouchDB.Core.ExistingDocument<NicknameDoc> = { ...baseDoc, _rev: existing._rev };
     await db.put(doc, { force: true });
   } else {
@@ -123,8 +123,11 @@ export async function getAllUserNicknames(
   guildId: string,
   startToken?: string,
 ): Promise<UserNicknames[]> {
-  const selector: PouchDB.Find.Selector = { type: 'nickname', guildId };
-  selector.userId = startToken ? { $gt: startToken } : { $exists: true };
+  const selector: PouchDB.Find.Selector = {
+    type: 'nickname',
+    guildId,
+    userId: startToken ? { $gt: startToken } : { $exists: true },
+  };
   const res = (await db.find({
     selector,
     fields: ['nickname', 'userId'],
@@ -135,7 +138,6 @@ export async function getAllUserNicknames(
     logger.warn({ warning: res.warning }, 'getAllNicknames warning');
   }
   const userNicknames: UserNicknames[] = [];
-  // eslint-disable-next-line no-restricted-syntax
   for (const nicknameEntry of res.docs) {
     const { userId, nickname } = nicknameEntry;
     const lastEntry = userNicknames.at(-1);
@@ -153,9 +155,9 @@ export async function getAllNicknamesIn(
   notInNicknames: Set<string>,
 ): Promise<Set<string>> {
   const res = (await db.find({
-    selector: { type: 'nickname', guildId, nickname: { $in: Array.from(notInNicknames) } },
+    selector: { type: 'nickname', guildId, nickname: { $in: [...notInNicknames] } },
     fields: ['nickname'],
-    limit: 10000,
+    limit: 10_000,
   })) as PouchDB.Find.FindResponse<NicknameEntry>;
   if (res.warning) {
     logger.warn({ warning: res.warning }, 'getAllNicknames warning');
@@ -203,7 +205,7 @@ export async function setLastMessageId(
   messageId: string,
 ): Promise<void> {
   const id = lastMessageId(guildId, channelId);
-  const existing = await db.get<LastMessageDoc>(id).catch(() => undefined);
+  const existing = await db.get<LastMessageDoc>(id).catch(() => {});
   const baseDoc: PouchDB.Core.Document<LastMessageDoc> = {
     _id: id,
     type: 'lastMessage',
@@ -212,7 +214,6 @@ export async function setLastMessageId(
     messageId,
   };
   if (existing) {
-    // eslint-disable-next-line no-underscore-dangle
     const doc: PouchDB.Core.ExistingDocument<LastMessageDoc> = { ...baseDoc, _rev: existing._rev };
     await db.put(doc, { force: true });
   } else {
@@ -223,7 +224,7 @@ export async function setLastMessageId(
 export async function getResults(guildId: string, channelId: string): Promise<ResultDoc[]> {
   const res = (await db.find({
     selector: { type: 'result', guildId, channelId },
-    limit: 10000,
+    limit: 10_000,
   })) as PouchDB.Find.FindResponse<ResultDoc>;
   if (res.warning) {
     logger.warn({ warning: res.warning }, 'getResults warning');
