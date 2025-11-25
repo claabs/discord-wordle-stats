@@ -2,6 +2,8 @@
 
 A Discord bot that calculates statistics for the official Discord Wordle application.
 
+![An example of the bot output showing average scores for all players in a channel](img/stats.png)
+
 ## Features
 
 - Displays average score, total game count, and failed game count per user
@@ -69,5 +71,5 @@ services:
 
 - Resolve eslint ignores
 - Optional trigger when Wordle bot posts results message
-- Add screenshots
 - Improve leaderboard formatting (profile images, emojis, podium)
+- Handle message length limits
