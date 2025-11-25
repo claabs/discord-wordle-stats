@@ -12,6 +12,7 @@ A Discord bot that calculates statistics for the official Discord Wordle applica
 
 - Doesn't support multiple users using the same nicknames
 - It just parses the results message, so incomplete games count as an "X" (a fail)
+- Only servers are supported; does not support Wordle stats when played in a DM with the official Wordle application
 
 ## Quick Start (Docker)
 
@@ -44,9 +45,20 @@ services:
 
 - **`BOT_TOKEN`**: Required. The Discord bot token for your application.
 - **`OWNER_ID`**: Optional. Discord user ID for the bot owner in addition to guild moderators; used for moderator-restricted commands.
-- **`LOG_LEVEL`**: Optional. Logging verbosity. Defaults to `info` if not set. Common values: `debug`, `info`, `warn`, `error`.
+- **`LOG_LEVEL`**: Optional. Logging verbosity. Defaults to `info`. Common values: `debug`, `info`, `warn`, `error`.
 
 ### Discord Bot Config
+
+#### Installation
+
+- Installation Contexts
+  - [ ] User install
+  - [x] Guild install
+- Default Install Settings
+  - Scopes: `application.commands`, `bot`
+  - Permissions: `Read Message History`, `View Channels`
+
+#### Bot
 
 - Enable **Presence Intent**
   - required to match nicknames to users in the member list
