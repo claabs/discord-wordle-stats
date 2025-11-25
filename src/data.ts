@@ -6,6 +6,8 @@ import PouchdbFind from 'pouchdb-find';
 import { dataPath } from './config.ts';
 import { baseLogger as logger } from './logger.ts';
 
+import type { UserNicknames } from './handlers/nickname.ts';
+
 PouchDB.plugin(PouchdbFind);
 
 interface BaseWinner {
@@ -46,9 +48,10 @@ export interface LastMessageDoc {
 
 export type NicknameEntry = Pick<NicknameDoc, 'nickname' | 'userId'>;
 
-const db = new PouchDB<ResultDoc | NicknameDoc | LastMessageDoc>(path.join(dataPath, 'db'));
+const db = new PouchDB<ResultDoc | NicknameDoc | LastMessageDoc>(path.join(dataPath, 'db'), {});
 
 await db.createIndex({ index: { fields: ['type', 'guildId', 'nickname'] } });
+await db.createIndex({ index: { fields: ['type', 'guildId', 'userId'] } });
 await db.createIndex({ index: { fields: ['type', 'guildId', 'channelId'] } });
 
 function nicknameId(guildId: string, nickname: string): string {
@@ -116,19 +119,48 @@ export async function getUserIdsFromNicknames(
   return Object.fromEntries(docs.map((doc) => [doc.nickname, doc.userId]));
 }
 
-export async function getAllNicknames(guildId: string): Promise<Record<string, string>> {
+export async function getAllUserNicknames(
+  guildId: string,
+  startToken?: string,
+): Promise<UserNicknames[]> {
+  const selector: PouchDB.Find.Selector = { type: 'nickname', guildId };
+  selector.userId = startToken ? { $gt: startToken } : { $exists: true };
   const res = (await db.find({
-    selector: { type: 'nickname', guildId },
+    selector,
     fields: ['nickname', 'userId'],
-    limit: 10000,
-  })) as PouchDB.Find.FindResponse<Pick<NicknameDoc, 'nickname' | 'userId'>>;
+    sort: ['userId'],
+    limit: 80,
+  })) as PouchDB.Find.FindResponse<NicknameEntry>;
   if (res.warning) {
     logger.warn({ warning: res.warning }, 'getAllNicknames warning');
   }
-  const out: Record<string, string> = Object.fromEntries(
-    res.docs.map((d) => [d.nickname, d.userId]),
-  );
-  return out;
+  const userNicknames: UserNicknames[] = [];
+  // eslint-disable-next-line no-restricted-syntax
+  for (const nicknameEntry of res.docs) {
+    const { userId, nickname } = nicknameEntry;
+    const lastEntry = userNicknames.at(-1);
+    if (lastEntry?.userId === userId) {
+      lastEntry.nicknames.push(nickname);
+    } else {
+      userNicknames.push({ userId, nicknames: [nickname] });
+    }
+  }
+  return userNicknames;
+}
+
+export async function getAllNicknamesIn(
+  guildId: string,
+  notInNicknames: Set<string>,
+): Promise<Set<string>> {
+  const res = (await db.find({
+    selector: { type: 'nickname', guildId, nickname: { $in: Array.from(notInNicknames) } },
+    fields: ['nickname'],
+    limit: 10000,
+  })) as PouchDB.Find.FindResponse<NicknameEntry>;
+  if (res.warning) {
+    logger.warn({ warning: res.warning }, 'getAllNicknames warning');
+  }
+  return new Set(res.docs.map((d) => d.nickname));
 }
 
 export async function removeNickname(guildId: string, nickname: string): Promise<boolean> {

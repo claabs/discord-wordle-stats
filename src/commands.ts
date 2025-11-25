@@ -5,8 +5,8 @@ import { botToken } from './config.ts';
 export const statsCommand = new SlashCommandBuilder()
   .setName('stats')
   .setDescription('Get Wordle stats')
-  .addChannelOption((channel) =>
-    channel
+  .addChannelOption((option) =>
+    option
       .setName('wordle-channel')
       .setDescription('Your Wordle text channel. The default is this channel.')
       .setRequired(false)
@@ -42,11 +42,11 @@ export const nicknameCommand = new SlashCommandBuilder()
     sub
       .setName('add')
       .setDescription('Link a past nickname to a user')
-      .addUserOption((user) =>
-        user.setName('user').setDescription('The user to link the nickname to').setRequired(true),
+      .addUserOption((option) =>
+        option.setName('user').setDescription('The user to link the nickname to').setRequired(true),
       )
-      .addStringOption((nickname) =>
-        nickname
+      .addStringOption((option) =>
+        option
           .setName('nickname')
           .setDescription('The nickname to link to the user')
           .setRequired(true),
@@ -60,7 +60,19 @@ export const nicknameCommand = new SlashCommandBuilder()
         nickname.setName('nickname').setDescription('The nickname to remove').setRequired(true),
       ),
   )
-  .addSubcommand((sub) => sub.setName('list').setDescription('List all nicknames'));
+  .addSubcommand((sub) =>
+    sub
+      .setName('list')
+      .setDescription('List all nicknames')
+      .addUserOption((option) =>
+        option
+          .setName('start-token')
+          .setDescription(
+            'Starts the list from this user. For lists longer than the message limit,',
+          )
+          .setRequired(false),
+      ),
+  );
 
 const commands = [statsCommand.toJSON(), nicknameCommand.toJSON()];
 

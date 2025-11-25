@@ -1,11 +1,15 @@
-/* eslint-disable no-restricted-syntax */
 import { MessageFlags } from 'discord.js';
 
 import { assertModerator } from './utils.ts';
-import { addNickname, getAllNicknames, removeNickname } from '../data.ts';
+import { addNickname, getAllUserNicknames, removeNickname } from '../data.ts';
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { Logger } from 'pino';
+
+export interface UserNicknames {
+  userId: string;
+  nicknames: string[];
+}
 
 export async function handleAddNickname(
   interaction: ChatInputCommandInteraction<'cached' | 'raw'>,
@@ -52,6 +56,13 @@ export async function handleRemoveNickname(
   }
 }
 
+function formatUserNicknames(userNicknames: UserNicknames): string {
+  const { userId, nicknames } = userNicknames;
+  const mention = `<@${userId}>`;
+  const formatted = nicknames.map((n) => `\`${n}\``).join(', ');
+  return `${mention}: ${formatted}`;
+}
+
 export async function handleListNicknames(
   interaction: ChatInputCommandInteraction<'cached' | 'raw'>,
   logger: Logger,
@@ -60,9 +71,10 @@ export async function handleListNicknames(
 
   logger.info('Listing nicknames');
 
-  const all = await getAllNicknames(guildId);
-  const entries = Object.entries(all);
-  if (entries.length === 0) {
+  const startTokenUser = interaction.options.getUser('start-token', false);
+
+  const userNicknames = await getAllUserNicknames(guildId, startTokenUser?.id);
+  if (!userNicknames.length) {
     await interaction.reply({
       content: 'No nicknames stored for this guild.',
       flags: MessageFlags.Ephemeral,
@@ -70,22 +82,16 @@ export async function handleListNicknames(
     return;
   }
 
-  // Group by userId
-  const byUser: Record<string, string[]> = {};
-  for (const [nickname, userId] of entries) {
-    byUser[userId] ??= [];
-    byUser[userId].push(nickname);
+  const contentLines: string[] = [];
+
+  // eslint-disable-next-line no-restricted-syntax
+  for (const userNickname of userNicknames) {
+    contentLines.push(formatUserNicknames(userNickname));
+    if (contentLines.join('\n').length > 2000) {
+      contentLines.pop();
+      break;
+    }
   }
 
-  // Format output
-  const blocks: string[] = [];
-  for (const userId of Object.keys(byUser)) {
-    const names = byUser[userId] ?? [];
-    const mention = `<@${userId}>`;
-    const formatted = names.map((n) => `\`${n}\``).join(', ');
-    blocks.push(`${mention}: ${formatted}`);
-  }
-  const content = blocks.join('\n');
-
-  await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: contentLines.join('\n'), flags: MessageFlags.Ephemeral });
 }

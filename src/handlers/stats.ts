@@ -7,7 +7,7 @@ import { isDev } from '../config.ts';
 import {
   addNicknames,
   addResults,
-  getAllNicknames,
+  getAllNicknamesIn,
   getLastMessageId,
   getResults,
   getUserIdsFromNicknames,
@@ -94,8 +94,9 @@ async function matchNicknames(
       }
     }
   }
-  const allStoredNicknames = new Set<string>(Object.keys(await getAllNicknames(guildId)));
-  const unmatchedNicknames = allResultNicknames.difference(allStoredNicknames);
+
+  const storedNicknames = await getAllNicknamesIn(guildId, allResultNicknames);
+  const unmatchedNicknames = allResultNicknames.difference(storedNicknames);
 
   if (unmatchedNicknames.size === 0) {
     return [];
@@ -318,6 +319,12 @@ export async function handleStats(
       `These nicknames need to be manually matched: ${unresolvedNicknames.map((n) => `\`${n}\``).join(', ')}.`,
     );
   }
+
+  // truncate to fit within Discord message limit
+  while (contentLines.join('\n').length > 2000) {
+    contentLines.pop();
+  }
+
   await interaction.editReply({
     content: contentLines.join('\n'),
   });
