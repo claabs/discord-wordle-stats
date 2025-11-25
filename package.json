@@ -19,6 +19,9 @@
   "license": "MIT",
   "description": "A Discord bot that calculates statistics for the official Discord Wordle application",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "devDependencies": {
     "@eslint/compat": "^2.0.0",
     "@eslint/js": "^9.39.1",

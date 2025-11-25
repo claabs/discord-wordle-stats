@@ -28,13 +28,6 @@ const nodeConfig = [
   plugins.node,
   // Airbnb Node Recommended Config
   ...configs.node.recommended,
-  {
-    settings: {
-      node: {
-        version: '>=24',
-      },
-    },
-  },
 ];
 
 const typescriptConfig = [
