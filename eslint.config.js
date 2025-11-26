@@ -38,24 +38,6 @@ const typescriptConfig = [
   ...configs.base.typescript,
   // Strict TypeScript Config
   rules.typescript.typescriptEslintStrict,
-  {
-    rules: {
-      'import-x/prefer-default-export': 0,
-      'import-x/extensions': 0,
-    },
-  },
-];
-
-const unicornConfig = [
-  eslintPluginUnicorn.configs.recommended,
-  {
-    rules: {
-      'unicorn/prefer-ternary': ['error', 'only-single-line'],
-      'unicorn/prefer-switch': 'off',
-      'unicorn/prevent-abbreviations': 'off',
-      'no-restricted-syntax': ['error', 'ForInStatement', 'LabeledStatement', 'WithStatement'],
-    },
-  },
 ];
 
 export default [
@@ -67,12 +49,17 @@ export default [
   ...nodeConfig,
   // TypeScript Config
   ...typescriptConfig,
-  ...unicornConfig,
+  // Unicorn Config
+  eslintPluginUnicorn.configs.recommended,
+  // My overrides
   {
-    name: 'models/config',
-    files: ['src/models/**/*.ts'],
     rules: {
-      'max-classes-per-file': 0,
+      'import-x/prefer-default-export': 0, // default export is dumb
+      'import-x/extensions': 0, // Node native TS support
+      'unicorn/prefer-ternary': ['error', 'only-single-line'], // Hard to read
+      'unicorn/prefer-switch': 'off', // Too wordy
+      'unicorn/prevent-abbreviations': 'off', // Unrealistic
+      'no-restricted-syntax': ['error', 'ForInStatement', 'LabeledStatement', 'WithStatement'], // Remove Airbnb's ban on for..of
     },
   },
   // Prettier Config
