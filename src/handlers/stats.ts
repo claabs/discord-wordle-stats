@@ -31,6 +31,7 @@ interface UserStats {
   count: number;
   failCount: number;
   average: number;
+  bayesianAverage: number;
   userIdOrNickname: string;
   isNickname: boolean;
 }
@@ -132,10 +133,10 @@ async function calculateAverageScores(
   guildId: string,
   failScore: number,
 ): Promise<UserStats[]> {
-  const acc: Record<
+  const tempUserStats = new Map<
     string,
     { sum: number; count: number; failCount: number; isNickname: boolean }
-  > = {};
+  >();
 
   const unresolvedNicknames = new Set<string>();
   for (const result of results) {
@@ -163,27 +164,45 @@ async function calculateAverageScores(
       }
       if (userId) {
         const score = winner.score === 'X' ? failScore : winner.score;
-        const entry = acc[userId] ?? { sum: 0, count: 0, failCount: 0, isNickname };
+        const entry = tempUserStats.get(userId) ?? { sum: 0, count: 0, failCount: 0, isNickname };
         entry.sum += score;
         entry.count += 1;
         entry.failCount += winner.score === 'X' ? 1 : 0;
-        acc[userId] = entry;
+        tempUserStats.set(userId, entry);
       }
     }
   }
 
-  const userStats: UserStats[] = Object.entries(acc).map(([k, v]) => ({
-    sum: v.sum,
-    count: v.count,
-    failCount: v.failCount,
-    average: v.sum / v.count,
-    userIdOrNickname: k,
-    isNickname: v.isNickname,
-  }));
+  // Compute global prior mean
+  // const values = [...tempUserStats.values()];
+  // const totalSum = values.reduce((s, u) => s + u.sum, 0);
+  // const totalCount = values.reduce((c, u) => c + u.count, 0);
+  // const priorMean = totalCount > 0 ? totalSum / totalCount : 0;
+  const priorMean = failScore;
 
-  return userStats;
+  // Confidence constant = 25th percentile of user counts
+  // const counts = values.map((v) => v.count).toSorted((a, b) => a - b);
+  // const pctIdx = Math.floor((counts.length - 1) * 0.05);
+  // const confidence = counts[pctIdx] ?? 1; // fallback to 1 if no data
+  const confidence = 5;
+
+  const userStats = tempUserStats.entries().map(([userId, v]): UserStats => {
+    const average = v.sum / v.count;
+    const bayesianAverage = (confidence * priorMean + v.sum) / (confidence + v.count);
+
+    return {
+      sum: v.sum,
+      count: v.count,
+      failCount: v.failCount,
+      average,
+      bayesianAverage,
+      userIdOrNickname: userId,
+      isNickname: v.isNickname,
+    };
+  });
+
+  return [...userStats];
 }
-
 export async function handleStats(
   interaction: ChatInputCommandInteraction<'cached' | 'raw'>,
   logger: Logger,
@@ -297,13 +316,13 @@ export async function handleStats(
 
   const userStats = await calculateAverageScores(results, guildId, failScore);
 
-  const sortedUserStats = userStats.toSorted((a, b) => a.average - b.average);
+  const sortedUserStats = userStats.toSorted((a, b) => a.bayesianAverage - b.bayesianAverage);
 
   const statsLines = sortedUserStats.map((stats, index) => {
     const rank = index + 1;
     const averageStr = stats.average.toFixed(3);
     const idDisplay = stats.isNickname ? stats.userIdOrNickname : `<@${stats.userIdOrNickname}>`;
-    return `#${rank}: ${idDisplay} - Average Score: ${averageStr} (${stats.count} games, ${stats.failCount} fails)`;
+    return `#${rank}: ${idDisplay} - Average Score: ${averageStr} (b${stats.bayesianAverage.toFixed(2)}, ${stats.count} games, ${stats.failCount} fails)`;
   });
 
   const contentLines = [
