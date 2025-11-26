@@ -70,4 +70,3 @@ services:
 ## To Do
 
 - Optional trigger when Wordle bot posts results message
-- Better debugger setup

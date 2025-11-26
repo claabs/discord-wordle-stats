@@ -15,12 +15,7 @@
                 "--experimental-transform-types"
             ],
             "type": "node",
+            "outputCapture": "std"
         },
-        {
-            "command": "npm start",
-            "name": "Run npm start",
-            "request": "launch",
-            "type": "node-terminal"
-        }
     ]
 }
