@@ -70,4 +70,4 @@ services:
 ## To Do
 
 - Optional trigger when Wordle bot posts results message
-- Improve leaderboard formatting (profile images, emojis, podium)
+- Better debugger setup

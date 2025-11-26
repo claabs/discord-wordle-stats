@@ -184,6 +184,13 @@ async function calculateAverageScores(
   return userStats;
 }
 
+function renderRank(rank: number): string {
+  if (rank === 1) return '# 🥇';
+  if (rank === 2) return '## 🥈';
+  if (rank === 3) return '### 🥉';
+  return `#**${rank.toFixed(0)}:**`;
+}
+
 export async function handleStats(
   interaction: ChatInputCommandInteraction<'cached' | 'raw'>,
   logger: Logger,
@@ -303,11 +310,11 @@ export async function handleStats(
     const rank = index + 1;
     const averageStr = stats.average.toFixed(3);
     const idDisplay = stats.isNickname ? stats.userIdOrNickname : `<@${stats.userIdOrNickname}>`;
-    return `#${rank}: ${idDisplay} - Average Score: ${averageStr} (${stats.count} games, ${stats.failCount} fails)`;
+    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (${stats.count} games, ${stats.failCount} fails)`;
   });
 
   const contentLines = [
-    `Stats for ${results.length} games in <#${channelId}> (fails score as ${failScore}):`,
+    `-# Stats for ${results.length} games in <#${channelId}> (fails score as ${failScore})`,
     ...statsLines,
   ];
 
