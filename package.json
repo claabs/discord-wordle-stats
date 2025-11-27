@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "src/index.ts",
   "scripts": {
-    "start": "node --experimental-transform-types src/index.ts",
+    "start": "node --experimental-transform-types --disable-warning=ExperimentalWarning src/index.ts",
     "docker:run": "docker run --rm -ti --init -v $(pwd)/data:/data --env-file .env discord-wordle-stats",
     "docker:build": "docker build -t discord-wordle-stats .",
     "lint": "tsc; eslint ."

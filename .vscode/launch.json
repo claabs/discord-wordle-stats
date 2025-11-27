@@ -12,10 +12,11 @@
                 "<node_internals>/**"
             ],
             "args": [
-                "--experimental-transform-types"
+                "--experimental-transform-types",
+                "--disable-warning=ExperimentalWarning",
             ],
             "type": "node",
-            "outputCapture": "std"
+            "outputCapture": "std",
         },
     ]
 }

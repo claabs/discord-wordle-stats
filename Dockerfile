@@ -25,4 +25,4 @@ COPY . .
 # Use the built-in non-root 'node' user for security
 USER node
 
-CMD ["node", "./src/index.ts", "--experimental-transform-types"]
+CMD ["node", "--experimental-transform-types", "--disable-warning=ExperimentalWarning", "./src/index.ts"]
