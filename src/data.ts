@@ -52,7 +52,7 @@ export type NicknameEntry = Pick<NicknameDoc, 'nickname' | 'userId'>;
 const db = new PouchDB<ResultDoc | NicknameDoc | LastMessageDoc>(path.join(dataPath, 'db'), {});
 
 await db.createIndex({ index: { fields: ['type', 'guildId', 'nickname'] } });
-await db.createIndex({ index: { fields: ['type', 'guildId', 'userId'] } });
+await db.createIndex({ index: { fields: ['userId', 'type', 'guildId'] } });
 await db.createIndex({ index: { fields: ['type', 'guildId', 'channelId'] } });
 
 function nicknameId(guildId: string, nickname: string): string {
@@ -126,7 +126,7 @@ export async function getAllUserNicknames(
   const selector: PouchDB.Find.Selector = {
     type: 'nickname',
     guildId,
-    userId: startToken ? { $gt: startToken } : { $exists: true },
+    userId: startToken ? { $gte: startToken } : { $exists: true },
   };
   const res = (await db.find({
     selector,
