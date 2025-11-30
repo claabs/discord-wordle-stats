@@ -64,7 +64,7 @@ async function handlerWrap(
   }
 }
 
-client.on('interactionCreate', async (interaction) => {
+client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === statsCommand.name) {
       await handlerWrap(handleStats, interaction);
@@ -76,6 +76,10 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
+
+client.on(Events.Debug, (msg) => baseLogger.trace(msg));
+client.on(Events.Warn, (msg) => baseLogger.warn(msg));
+client.on(Events.Error, (error) => baseLogger.error(error));
 
 // Log in to Discord with your client's token
 client.login(botToken);
