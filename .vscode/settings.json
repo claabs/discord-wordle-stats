@@ -3,6 +3,11 @@
         "javascript",
         "typescript"
     ],
+    "eslint.options": {
+        "flags": [
+            "unstable_native_nodejs_ts_config",
+        ],
+    },
     "editor.codeActionsOnSave": {
         "source.fixAll.eslint": "explicit"
     },

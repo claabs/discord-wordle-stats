@@ -6,7 +6,7 @@
     "start": "node --experimental-transform-types --disable-warning=ExperimentalWarning src/index.ts",
     "docker:run": "docker run --rm -ti --init -v $(pwd)/data:/data --env-file .env discord-wordle-stats",
     "docker:build": "docker build -t discord-wordle-stats .",
-    "lint": "tsc; eslint ."
+    "lint": "tsc; eslint . --flag unstable_native_nodejs_ts_config"
   },
   "author": {
     "name": "Charlie Laabs",
@@ -33,14 +33,14 @@
     "@types/pouchdb": "^6.4.2",
     "@types/pouchdb-find": "^7.3.3",
     "eslint": "^9.39.1",
-    "eslint-config-airbnb-extended": "^2.3.2",
+    "eslint-config-airbnb-extended": "^2.3.3",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import-x": "^4.16.1",
     "eslint-plugin-n": "^17.23.1",
     "eslint-plugin-prettier": "^5.5.4",
     "eslint-plugin-unicorn": "^62.0.0",
-    "prettier": "^3.6.2",
+    "prettier": "^3.7.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.48.0"
   },

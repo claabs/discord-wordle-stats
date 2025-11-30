@@ -6,6 +6,8 @@ import { configs, plugins, rules } from 'eslint-config-airbnb-extended';
 import prettierPlugin from 'eslint-plugin-prettier/recommended';
 import eslintPluginUnicorn from 'eslint-plugin-unicorn';
 
+import type { Linter } from 'eslint';
+
 const gitignorePath = path.resolve('.', '.gitignore');
 
 const jsConfig = [
@@ -53,9 +55,10 @@ export default [
   eslintPluginUnicorn.configs.recommended,
   // My overrides
   {
+    name: 'project/overrides',
     rules: {
       'import-x/prefer-default-export': 0, // default export is dumb
-      'import-x/extensions': 0, // Node native TS support
+      'import-x/extensions': ['error', 'ignorePackages', { ts: 'always' }], // Node native TS support
       'unicorn/prefer-ternary': ['error', 'only-single-line'], // Hard to read
       'unicorn/prefer-switch': 'off', // Too wordy
       'unicorn/prevent-abbreviations': 'off', // Unrealistic
@@ -64,4 +67,4 @@ export default [
   },
   // Prettier Config
   prettierPlugin,
-];
+] satisfies Linter.Config[];
