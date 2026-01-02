@@ -2,15 +2,14 @@ import path from 'node:path';
 
 import { includeIgnoreFile } from '@eslint/compat';
 import js from '@eslint/js';
+import { defineConfig } from 'eslint/config';
 import { configs, plugins, rules } from 'eslint-config-airbnb-extended';
 import prettierPlugin from 'eslint-plugin-prettier/recommended';
 import eslintPluginUnicorn from 'eslint-plugin-unicorn';
 
-import type { Linter } from 'eslint';
-
 const gitignorePath = path.resolve('.', '.gitignore');
 
-const jsConfig = [
+const jsConfig = defineConfig([
   // ESLint Recommended Rules
   {
     name: 'js/config',
@@ -24,25 +23,25 @@ const jsConfig = [
   ...configs.base.recommended,
   // Strict Import Config
   rules.base.importsStrict,
-];
+]);
 
-const nodeConfig = [
+const nodeConfig = defineConfig([
   // Node Plugin
   plugins.node,
   // Airbnb Node Recommended Config
   ...configs.node.recommended,
-];
+]);
 
-const typescriptConfig = [
+const typescriptConfig = defineConfig([
   // TypeScript ESLint Plugin
   plugins.typescriptEslint,
   // Airbnb Base TypeScript Config
   ...configs.base.typescript,
   // Strict TypeScript Config
   rules.typescript.typescriptEslintStrict,
-];
+]);
 
-export default [
+export default defineConfig([
   // Ignore .gitignore files/folder in eslint
   includeIgnoreFile(gitignorePath),
   // Javascript Config
@@ -67,4 +66,4 @@ export default [
   },
   // Prettier Config
   prettierPlugin,
-] satisfies Linter.Config[];
+]);
