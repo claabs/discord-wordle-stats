@@ -36,6 +36,36 @@ interface UserStats {
   isNickname: boolean;
 }
 
+const calculateMedian = (inArray: number[]): number => {
+  let array = inArray;
+  if (array.length > 0) {
+    // Sort Array
+    array = array.toSorted((a: number, b: number) => {
+      return a - b;
+    });
+
+    // Array Length: Even
+    if (array.length % 2 === 0) {
+      // Average Of Two Middle Numbers
+      const mid1 = array.at(array.length / 2 - 1);
+      const mid2 = array.at(array.length / 2);
+      if (mid1 === undefined || mid2 === undefined) {
+        throw new Error('Unexpected undefined value in array');
+      }
+      return (mid1 + mid2) / 2;
+    }
+    // Array Length: Odd
+
+    // Middle Number
+    const mid = array.at((array.length - 1) / 2);
+    if (mid === undefined) {
+      throw new Error('Unexpected undefined value in array');
+    }
+    return mid;
+  }
+  throw new Error('Cannot compute median of empty array');
+};
+
 /**
  * parse lines like: "👑 3/6: @nobody" or "4/6: @whatever @whatsup"
  */
@@ -151,6 +181,9 @@ async function calculateAverageScores(
     ...unresolvedNicknames,
   ]);
 
+  let totalScoreSum = 0;
+  let totalCount = 0;
+
   for (const result of results) {
     for (const winner of result.winners) {
       let userId: string | undefined;
@@ -166,25 +199,20 @@ async function calculateAverageScores(
         const score = winner.score === 'X' ? failScore : winner.score;
         const entry = tempUserStats.get(userId) ?? { sum: 0, count: 0, failCount: 0, isNickname };
         entry.sum += score;
+        totalScoreSum += score;
         entry.count += 1;
+        totalCount += 1;
         entry.failCount += winner.score === 'X' ? 1 : 0;
         tempUserStats.set(userId, entry);
       }
     }
   }
 
-  // Compute global prior mean
-  // const values = [...tempUserStats.values()];
-  // const totalSum = values.reduce((s, u) => s + u.sum, 0);
-  // const totalCount = values.reduce((c, u) => c + u.count, 0);
-  // const priorMean = totalCount > 0 ? totalSum / totalCount : 0;
-  const priorMean = failScore;
+  // mean = the median number of games played by all users
+  const priorMean = calculateMedian([...tempUserStats.values()].map((v) => v.count));
 
-  // Confidence constant = 25th percentile of user counts
-  // const counts = values.map((v) => v.count).toSorted((a, b) => a - b);
-  // const pctIdx = Math.floor((counts.length - 1) * 0.05);
-  // const confidence = counts[pctIdx] ?? 1; // fallback to 1 if no data
-  const confidence = 5;
+  // Confidence constant = average score of every game ever played
+  const confidence = totalCount > 0 ? totalScoreSum / totalCount : 0;
 
   const userStats = tempUserStats.entries().map(([userId, v]): UserStats => {
     const average = v.sum / v.count;
