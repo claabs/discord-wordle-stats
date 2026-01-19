@@ -216,7 +216,7 @@ async function calculateAverageScores(
 
   const userStats = tempUserStats.entries().map(([userId, v]): UserStats => {
     const average = v.sum / v.count;
-    const bayesianAverage = (confidence * priorMean + v.sum) / (confidence + v.count);
+    const bayesianAverage = (confidence * priorMean + v.sum * average) / (confidence + v.count);
 
     return {
       sum: v.sum,
@@ -299,7 +299,9 @@ export async function handleStats(
       fetchOptions.before = lastProcessedMessage;
     }
 
+    logger.trace({ fetchOptions }, 'Fetching message batch');
     const messageBatch = await channel.messages.fetch(fetchOptions);
+    logger.trace({ messageCount: messageBatch.size }, 'Fetched message batch');
     if (messageBatch.size < BATCH_SIZE) {
       continueFetchingMessages = false;
     }
@@ -314,7 +316,6 @@ export async function handleStats(
         continueFetchingMessages = false;
         break;
       }
-
       const { content } = msg;
 
       if (
