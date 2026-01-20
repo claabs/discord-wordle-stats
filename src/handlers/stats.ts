@@ -1,3 +1,4 @@
+import stdev from '@stdlib/stats-base-stdev';
 import { MessageFlags } from 'discord.js';
 
 import { assertTextChannel } from './utils.ts';
@@ -31,40 +32,10 @@ interface UserStats {
   count: number;
   failCount: number;
   average: number;
-  bayesianAverage: number;
+  upperBound: number;
   userIdOrNickname: string;
   isNickname: boolean;
 }
-
-const calculateMedian = (inArray: number[]): number => {
-  let array = inArray;
-  if (array.length > 0) {
-    // Sort Array
-    array = array.toSorted((a: number, b: number) => {
-      return a - b;
-    });
-
-    // Array Length: Even
-    if (array.length % 2 === 0) {
-      // Average Of Two Middle Numbers
-      const mid1 = array.at(array.length / 2 - 1);
-      const mid2 = array.at(array.length / 2);
-      if (mid1 === undefined || mid2 === undefined) {
-        throw new Error('Unexpected undefined value in array');
-      }
-      return (mid1 + mid2) / 2;
-    }
-    // Array Length: Odd
-
-    // Middle Number
-    const mid = array.at((array.length - 1) / 2);
-    if (mid === undefined) {
-      throw new Error('Unexpected undefined value in array');
-    }
-    return mid;
-  }
-  throw new Error('Cannot compute median of empty array');
-};
 
 /**
  * parse lines like: "👑 3/6: @nobody" or "4/6: @whatever @whatsup"
@@ -165,7 +136,7 @@ async function calculateAverageScores(
 ): Promise<UserStats[]> {
   const tempUserStats = new Map<
     string,
-    { sum: number; count: number; failCount: number; isNickname: boolean }
+    { sum: number; count: number; failCount: number; isNickname: boolean; scores: number[] }
   >();
 
   const unresolvedNicknames = new Set<string>();
@@ -181,9 +152,6 @@ async function calculateAverageScores(
     ...unresolvedNicknames,
   ]);
 
-  let totalScoreSum = 0;
-  let totalCount = 0;
-
   for (const result of results) {
     for (const winner of result.winners) {
       let userId: string | undefined;
@@ -197,33 +165,33 @@ async function calculateAverageScores(
       }
       if (userId) {
         const score = winner.score === 'X' ? failScore : winner.score;
-        const entry = tempUserStats.get(userId) ?? { sum: 0, count: 0, failCount: 0, isNickname };
+        const entry = tempUserStats.get(userId) ?? {
+          sum: 0,
+          count: 0,
+          failCount: 0,
+          isNickname,
+          scores: [],
+        };
         entry.sum += score;
-        totalScoreSum += score;
         entry.count += 1;
-        totalCount += 1;
         entry.failCount += winner.score === 'X' ? 1 : 0;
+        entry.scores.push(score);
         tempUserStats.set(userId, entry);
       }
     }
   }
 
-  // mean = the median number of games played by all users
-  const priorMean = calculateMedian([...tempUserStats.values()].map((v) => v.count));
-
-  // Confidence constant = average score of every game ever played
-  const confidence = totalCount > 0 ? totalScoreSum / totalCount : 0;
-
   const userStats = tempUserStats.entries().map(([userId, v]): UserStats => {
     const average = v.sum / v.count;
-    const bayesianAverage = (confidence * priorMean + v.sum * average) / (confidence + v.count);
+    const scoreStdev = stdev(v.scores.length, 1, v.scores, 1);
+    const upperBound = average + 1.96 * (scoreStdev / Math.sqrt(v.count)); // 95% upper bound
 
     return {
       sum: v.sum,
       count: v.count,
       failCount: v.failCount,
       average,
-      bayesianAverage,
+      upperBound,
       userIdOrNickname: userId,
       isNickname: v.isNickname,
     };
@@ -353,17 +321,17 @@ export async function handleStats(
 
   const userStats = await calculateAverageScores(results, guildId, failScore);
 
-  const sortedUserStats = userStats.toSorted((a, b) => a.bayesianAverage - b.bayesianAverage);
+  const sortedUserStats = userStats.toSorted((a, b) => a.upperBound - b.upperBound);
 
   const statsLines = sortedUserStats.map((stats, index) => {
     const rank = index + 1;
     const averageStr = stats.average.toFixed(3);
     const idDisplay = stats.isNickname ? stats.userIdOrNickname : `<@${stats.userIdOrNickname}>`;
-    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (b${stats.bayesianAverage.toFixed(2)}, ${stats.count} games, ${stats.failCount} fails)`;
+    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (R: ${stats.upperBound.toFixed(2)}, ${stats.count} games, ${stats.failCount} fails)`;
   });
 
   const contentLines = [
-    `-# Stats for ${results.length} games in <#${channelId}> (fails score as ${failScore})`,
+    `-# Stats for ${results.length} games in <#${channelId}> (fails score as ${failScore}). Sorted by stastistical confidence bound (R).`,
     ...statsLines,
   ];
 
