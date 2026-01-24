@@ -1,4 +1,4 @@
-import { MessageFlags } from 'discord.js';
+import { MessageFlags, userMention } from 'discord.js';
 
 import { assertModerator } from './utils.ts';
 import { addNickname, getAllUserNicknames, removeNickname } from '../data.ts';
@@ -26,7 +26,7 @@ export async function handleAddNickname(
 
   await addNickname(guildId, nickname, user.id);
   await interaction.reply({
-    content: `Linked nickname "${nickname}" to <@${user.id}>.`,
+    content: `Linked nickname "${nickname}" to ${userMention(user.id)}.`,
     flags: MessageFlags.Ephemeral,
   });
 }
@@ -58,9 +58,8 @@ export async function handleRemoveNickname(
 
 function formatUserNicknames(userNicknames: UserNicknames): string {
   const { userId, nicknames } = userNicknames;
-  const mention = `<@${userId}>`;
   const formatted = nicknames.map((n) => `\`${n}\``).join(', ');
-  return `${mention}: ${formatted}`;
+  return `${userMention(userId)}: ${formatted}`;
 }
 
 export async function handleListNicknames(

@@ -1,4 +1,5 @@
-import { MessageFlags } from 'discord.js';
+import stdev from '@stdlib/stats-base-stdev';
+import { channelMention, MessageFlags, userMention } from 'discord.js';
 
 import { assertTextChannel } from './utils.ts';
 import { isDev } from '../config.ts';
@@ -31,9 +32,12 @@ interface UserStats {
   count: number;
   failCount: number;
   average: number;
+  upperBound: number;
   userIdOrNickname: string;
   isNickname: boolean;
 }
+
+type SortMode = 'average' | 'confidence';
 
 /**
  * parse lines like: "👑 3/6: @nobody" or "4/6: @whatever @whatsup"
@@ -132,10 +136,10 @@ async function calculateAverageScores(
   guildId: string,
   failScore: number,
 ): Promise<UserStats[]> {
-  const acc: Record<
+  const tempUserStats = new Map<
     string,
-    { sum: number; count: number; failCount: number; isNickname: boolean }
-  > = {};
+    { sum: number; count: number; failCount: number; isNickname: boolean; scores: number[] }
+  >();
 
   const unresolvedNicknames = new Set<string>();
   for (const result of results) {
@@ -163,25 +167,39 @@ async function calculateAverageScores(
       }
       if (userId) {
         const score = winner.score === 'X' ? failScore : winner.score;
-        const entry = acc[userId] ?? { sum: 0, count: 0, failCount: 0, isNickname };
+        const entry = tempUserStats.get(userId) ?? {
+          sum: 0,
+          count: 0,
+          failCount: 0,
+          isNickname,
+          scores: [],
+        };
         entry.sum += score;
         entry.count += 1;
         entry.failCount += winner.score === 'X' ? 1 : 0;
-        acc[userId] = entry;
+        entry.scores.push(score);
+        tempUserStats.set(userId, entry);
       }
     }
   }
 
-  const userStats: UserStats[] = Object.entries(acc).map(([k, v]) => ({
-    sum: v.sum,
-    count: v.count,
-    failCount: v.failCount,
-    average: v.sum / v.count,
-    userIdOrNickname: k,
-    isNickname: v.isNickname,
-  }));
+  const userStats = tempUserStats.entries().map(([userId, v]): UserStats => {
+    const average = v.sum / v.count;
+    const scoreStdev = stdev(v.scores.length, 1, v.scores, 1);
+    const upperBound = average + 1.96 * (scoreStdev / Math.sqrt(v.count)); // 95% upper bound
 
-  return userStats;
+    return {
+      sum: v.sum,
+      count: v.count,
+      failCount: v.failCount,
+      average,
+      upperBound,
+      userIdOrNickname: userId,
+      isNickname: v.isNickname,
+    };
+  });
+
+  return [...userStats];
 }
 
 function renderRank(rank: number): string {
@@ -212,6 +230,9 @@ export async function handleStats(
   if (historyDays !== null && historyDays < 0) throw new Error('history-days must be positive');
 
   const failScore = interaction.options.getInteger('fail-score', false) ?? DEFAULT_FAIL_SCORE;
+
+  const sortMode: SortMode =
+    (interaction.options.getString('sort-mode', false) as SortMode | undefined) ?? 'confidence';
 
   await interaction.deferReply({
     flags: isDev ? MessageFlags.Ephemeral : undefined,
@@ -251,7 +272,9 @@ export async function handleStats(
       fetchOptions.before = lastProcessedMessage;
     }
 
+    logger.trace({ fetchOptions }, 'Fetching message batch');
     const messageBatch = await channel.messages.fetch(fetchOptions);
+    logger.trace({ messageCount: messageBatch.size }, 'Fetched message batch');
     if (messageBatch.size < BATCH_SIZE) {
       continueFetchingMessages = false;
     }
@@ -266,7 +289,6 @@ export async function handleStats(
         continueFetchingMessages = false;
         break;
       }
-
       const { content } = msg;
 
       if (
@@ -304,17 +326,24 @@ export async function handleStats(
 
   const userStats = await calculateAverageScores(results, guildId, failScore);
 
-  const sortedUserStats = userStats.toSorted((a, b) => a.average - b.average);
+  let sortedUserStats: UserStats[] = [];
+  if (sortMode === 'average') {
+    sortedUserStats = userStats.toSorted((a, b) => a.average - b.average);
+  } else if (sortMode === 'confidence') {
+    sortedUserStats = userStats.toSorted((a, b) => a.upperBound - b.upperBound);
+  }
 
   const statsLines = sortedUserStats.map((stats, index) => {
     const rank = index + 1;
     const averageStr = stats.average.toFixed(3);
-    const idDisplay = stats.isNickname ? stats.userIdOrNickname : `<@${stats.userIdOrNickname}>`;
-    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (${stats.count} games, ${stats.failCount} fails)`;
+    const idDisplay = stats.isNickname
+      ? stats.userIdOrNickname
+      : userMention(stats.userIdOrNickname);
+    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (U: ${stats.upperBound.toFixed(2)}, ${stats.count} games, ${stats.failCount} fails)`;
   });
 
   const contentLines = [
-    `-# Stats for ${results.length} games in <#${channelId}> (fails score as ${failScore})`,
+    `-# Stats for ${results.length} games in ${channelMention(channelId)} (fails score as ${failScore}). Sorted by 95% confidence interval upper bound (U).`,
     ...statsLines,
   ];
 
