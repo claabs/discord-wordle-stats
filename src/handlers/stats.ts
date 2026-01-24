@@ -1,5 +1,5 @@
 import stdev from '@stdlib/stats-base-stdev';
-import { MessageFlags } from 'discord.js';
+import { channelMention, MessageFlags, userMention } from 'discord.js';
 
 import { assertTextChannel } from './utils.ts';
 import { isDev } from '../config.ts';
@@ -326,12 +326,14 @@ export async function handleStats(
   const statsLines = sortedUserStats.map((stats, index) => {
     const rank = index + 1;
     const averageStr = stats.average.toFixed(3);
-    const idDisplay = stats.isNickname ? stats.userIdOrNickname : `<@${stats.userIdOrNickname}>`;
-    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (R: ${stats.upperBound.toFixed(2)}, ${stats.count} games, ${stats.failCount} fails)`;
+    const idDisplay = stats.isNickname
+      ? stats.userIdOrNickname
+      : userMention(stats.userIdOrNickname);
+    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (U: ${stats.upperBound.toFixed(2)}, ${stats.count} games, ${stats.failCount} fails)`;
   });
 
   const contentLines = [
-    `-# Stats for ${results.length} games in <#${channelId}> (fails score as ${failScore}). Sorted by stastistical confidence bound (R).`,
+    `-# Stats for ${results.length} games in ${channelMention(channelId)} (fails score as ${failScore}). Sorted by 95% confidence interval upper bound (U).`,
     ...statsLines,
   ];
 
