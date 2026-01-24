@@ -41,9 +41,7 @@ export const statsCommand = new SlashCommandBuilder()
         { name: 'Average', value: 'average' },
         { name: 'Confidence', value: 'confidence' },
       )
-      .setDescription(
-        '"Average" sorts by average score, "Confidence" by 95% confidence upper bound. Defaults to "Confidence".',
-      )
+      .setDescription('Sort by average or 95% confidence upper bound. Defaults to confidence.')
       .setRequired(false),
   );
 
