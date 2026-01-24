@@ -37,6 +37,8 @@ interface UserStats {
   isNickname: boolean;
 }
 
+type SortMode = 'average' | 'confidence';
+
 /**
  * parse lines like: "👑 3/6: @nobody" or "4/6: @whatever @whatsup"
  */
@@ -229,6 +231,9 @@ export async function handleStats(
 
   const failScore = interaction.options.getInteger('fail-score', false) ?? DEFAULT_FAIL_SCORE;
 
+  const sortMode: SortMode =
+    (interaction.options.getString('sort-mode', false) as SortMode | undefined) ?? 'confidence';
+
   await interaction.deferReply({
     flags: isDev ? MessageFlags.Ephemeral : undefined,
   });
@@ -321,7 +326,12 @@ export async function handleStats(
 
   const userStats = await calculateAverageScores(results, guildId, failScore);
 
-  const sortedUserStats = userStats.toSorted((a, b) => a.upperBound - b.upperBound);
+  let sortedUserStats: UserStats[] = [];
+  if (sortMode === 'average') {
+    sortedUserStats = userStats.toSorted((a, b) => a.average - b.average);
+  } else if (sortMode === 'confidence') {
+    sortedUserStats = userStats.toSorted((a, b) => a.upperBound - b.upperBound);
+  }
 
   const statsLines = sortedUserStats.map((stats, index) => {
     const rank = index + 1;

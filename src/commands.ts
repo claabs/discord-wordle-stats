@@ -33,6 +33,18 @@ export const statsCommand = new SlashCommandBuilder()
         'How many a points a failed Wordle attempt (X/6) should count as. Defaults to 7.',
       )
       .setRequired(false),
+  )
+  .addStringOption((option) =>
+    option
+      .setName('sort-mode')
+      .addChoices(
+        { name: 'Average', value: 'average' },
+        { name: 'Confidence', value: 'confidence' },
+      )
+      .setDescription(
+        '"Average" sorts by average score, "Confidence" by 95% confidence upper bound. Defaults to "Confidence".',
+      )
+      .setRequired(false),
   );
 
 export const nicknameCommand = new SlashCommandBuilder()
