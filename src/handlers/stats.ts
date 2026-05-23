@@ -2,7 +2,7 @@ import stdev from '@stdlib/stats-base-stdev';
 import { channelMention, MessageFlags, userMention } from 'discord.js';
 
 import { assertTextChannel } from './utils.ts';
-import { isDev } from '../config.ts';
+import { isDev, onlyCache } from '../config.ts';
 import {
   addNicknames,
   addResults,
@@ -185,8 +185,11 @@ async function calculateAverageScores(
 
   const userStats = tempUserStats.entries().map(([userId, v]): UserStats => {
     const average = v.sum / v.count;
-    const scoreStdev = stdev(v.scores.length, 1, v.scores, 1);
-    const upperBound = average + 1.96 * (scoreStdev / Math.sqrt(v.count)); // 95% upper bound
+    let scoreStdev = stdev(v.scores.length, 1, v.scores, 1);
+    if (Number.isNaN(scoreStdev)) {
+      scoreStdev = 2; // Realistic fallback for Wordle, can be fine-tuned.
+    }
+    const upperBound = Math.min(average + 1.96 * (scoreStdev / Math.sqrt(v.count)), 7); // 95% upper bound. max 7
 
     return {
       sum: v.sum,
@@ -244,7 +247,7 @@ export async function handleStats(
     ? Date.now() - historyDays * 24 * 60 * 60 * 1000
     : new Date('2025-05-01').getTime();
 
-  let lastMessageId = await getLastMessageId(guildId, channelId);
+  let lastMessageId = onlyCache ? undefined : await getLastMessageId(guildId, channelId);
 
   let lastProcessedMessage: string | undefined;
   let processedMessagesCount = 0;
@@ -260,77 +263,82 @@ export async function handleStats(
 
   logger.debug({ lastMessageId, fetchChronologically }, 'Fetching message history');
 
-  const BATCH_SIZE = 100;
-  /* eslint-disable no-await-in-loop */
-  while (continueFetchingMessages) {
-    const fetchOptions: FetchMessagesOptions = {
-      limit: BATCH_SIZE,
-    };
-    if (fetchChronologically) {
-      fetchOptions.after = lastProcessedMessage;
-    } else {
-      fetchOptions.before = lastProcessedMessage;
-    }
+  if (!onlyCache) {
+    const BATCH_SIZE = 100;
+    /* eslint-disable no-await-in-loop */
+    while (continueFetchingMessages) {
+      const fetchOptions: FetchMessagesOptions = {
+        limit: BATCH_SIZE,
+      };
+      if (fetchChronologically) {
+        fetchOptions.after = lastProcessedMessage;
+      } else {
+        fetchOptions.before = lastProcessedMessage;
+      }
 
-    logger.trace({ fetchOptions }, 'Fetching message batch');
-    const messageBatch = await channel.messages.fetch(fetchOptions);
-    logger.trace({ messageCount: messageBatch.size }, 'Fetched message batch');
-    if (messageBatch.size < BATCH_SIZE) {
-      continueFetchingMessages = false;
-    }
-
-    const newResults: Omit<ResultDoc, 'type'>[] = [];
-    for (const msg of messageBatch.values()) {
-      lastMessageId = lastMessageId ? maxString(msg.id, lastMessageId) : msg.id;
-      lastProcessedMessage = msg.id;
-
-      // when processing reverse-chronological, stop when we reach the min timestamp
-      if (!fetchChronologically && msg.createdTimestamp < minDateTimestamp) {
+      logger.trace({ fetchOptions }, 'Fetching message batch');
+      const messageBatch = await channel.messages.fetch(fetchOptions);
+      logger.trace({ messageCount: messageBatch.size }, 'Fetched message batch');
+      if (messageBatch.size < BATCH_SIZE) {
         continueFetchingMessages = false;
-        break;
       }
-      const { content } = msg;
 
-      if (
-        msg.author.id === WORDLE_BOT_USER_ID &&
-        content.includes("Here are yesterday's results")
-      ) {
-        const winners = parseWinners(content);
+      const newResults: Omit<ResultDoc, 'type'>[] = [];
+      for (const msg of messageBatch.values()) {
+        lastMessageId = lastMessageId ? maxString(msg.id, lastMessageId) : msg.id;
+        lastProcessedMessage = msg.id;
 
-        newResults.push({
-          guildId,
-          channelId,
-          timestamp: msg.createdTimestamp,
-          content,
-          winners,
-          messageId: msg.id,
-        });
+        // when processing reverse-chronological, stop when we reach the min timestamp
+        if (!fetchChronologically && msg.createdTimestamp < minDateTimestamp) {
+          continueFetchingMessages = false;
+          break;
+        }
+        const { content } = msg;
 
-        processedMessagesCount += 1;
+        if (
+          msg.author.id === WORDLE_BOT_USER_ID &&
+          content.includes("Here are yesterday's results")
+        ) {
+          const winners = parseWinners(content);
+
+          newResults.push({
+            guildId,
+            channelId,
+            timestamp: msg.createdTimestamp,
+            content,
+            winners,
+            messageId: msg.id,
+          });
+
+          processedMessagesCount += 1;
+        }
       }
+      await addResults(newResults);
     }
-    await addResults(newResults);
-  }
-  /* eslint-enable no-await-in-loop */
+    /* eslint-enable no-await-in-loop */
 
-  if (lastMessageId) {
-    logger.debug({ channelId, lastMessageId }, 'Updating last processed message ID');
-    await setLastMessageId(guildId, channelId, lastMessageId);
-  }
+    if (lastMessageId) {
+      logger.debug({ channelId, lastMessageId }, 'Updating last processed message ID');
+      await setLastMessageId(guildId, channelId, lastMessageId);
+    }
 
-  logger.debug({ channelId, processedMessagesCount }, 'Processed new Wordle results');
+    logger.debug({ channelId, processedMessagesCount }, 'Processed new Wordle results');
+  }
 
   const results = await getResults(guildId, channelId);
 
-  const unresolvedNicknames = await matchNicknames(results, guildId, channel);
+  const unresolvedNicknames = onlyCache ? [] : await matchNicknames(results, guildId, channel);
 
   const userStats = await calculateAverageScores(results, guildId, failScore);
 
   let sortedUserStats: UserStats[] = [];
+  // Sort by score ascending, then count descending for ties
   if (sortMode === 'average') {
-    sortedUserStats = userStats.toSorted((a, b) => a.average - b.average);
+    sortedUserStats = userStats.toSorted((a, b) => a.average - b.average || b.count - a.count);
   } else if (sortMode === 'confidence') {
-    sortedUserStats = userStats.toSorted((a, b) => a.upperBound - b.upperBound);
+    sortedUserStats = userStats.toSorted(
+      (a, b) => a.upperBound - b.upperBound || b.count - a.count,
+    );
   }
 
   const statsLines = sortedUserStats.map((stats, index) => {
@@ -342,8 +350,10 @@ export async function handleStats(
     return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (U: ${stats.upperBound.toFixed(2)}, ${stats.count} games, ${stats.failCount} fails)`;
   });
 
+  const sortDescription =
+    sortMode === 'average' ? 'average score' : '95% confidence upper bound (U)';
   const contentLines = [
-    `-# Stats for ${results.length} games in ${channelMention(channelId)} (fails score as ${failScore}). Sorted by 95% confidence interval upper bound (U).`,
+    `-# Stats for ${results.length} games in ${channelMention(channelId)} (fails score as ${failScore}). Sorted by ${sortDescription}.`,
     ...statsLines,
   ];
 
