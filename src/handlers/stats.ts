@@ -347,13 +347,13 @@ export async function handleStats(
     const idDisplay = stats.isNickname
       ? stats.userIdOrNickname
       : userMention(stats.userIdOrNickname);
-    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (U: ${stats.upperBound.toFixed(2)}, ${stats.count} games, ${stats.failCount} fails)`;
+    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (U: ${stats.upperBound.toFixed(2)}, ${stats.count} game${stats.count === 1 ? '' : 's'}, ${stats.failCount} fail${stats.failCount === 1 ? '' : 's'})`;
   });
 
   const sortDescription =
     sortMode === 'average' ? 'average score' : '95% confidence upper bound (U)';
   const contentLines = [
-    `-# Stats for ${results.length} games in ${channelMention(channelId)} (fails score as ${failScore}). Sorted by ${sortDescription}.`,
+    `-# Stats for ${results.length} game${results.length === 1 ? '' : 's'} in ${channelMention(channelId)} (fails score as ${failScore}). Sorted by ${sortDescription}.`,
     ...statsLines,
   ];
 
