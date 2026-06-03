@@ -343,11 +343,18 @@ export async function handleStats(
 
   const statsLines = sortedUserStats.map((stats, index) => {
     const rank = index + 1;
-    const averageStr = stats.average.toFixed(3);
     const idDisplay = stats.isNickname
       ? stats.userIdOrNickname
       : userMention(stats.userIdOrNickname);
-    return `${renderRank(rank)} ${averageStr} avg - ${idDisplay} (U: ${stats.upperBound.toFixed(2)}, ${stats.count} game${stats.count === 1 ? '' : 's'}, ${stats.failCount} fail${stats.failCount === 1 ? '' : 's'})`;
+    const primaryScore =
+      sortMode === 'average'
+        ? `${stats.average.toFixed(3)} avg`
+        : `${stats.upperBound.toFixed(3)} U`;
+    const secondaryScore =
+      sortMode === 'average'
+        ? `${stats.upperBound.toFixed(2)} U`
+        : `${stats.average.toFixed(2)} avg`;
+    return `${renderRank(rank)} ${primaryScore} - ${idDisplay} (${secondaryScore}, ${stats.count} game${stats.count === 1 ? '' : 's'}, ${stats.failCount} fail${stats.failCount === 1 ? '' : 's'})`;
   });
 
   const sortDescription =
