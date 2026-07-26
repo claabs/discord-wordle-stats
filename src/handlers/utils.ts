@@ -1,9 +1,10 @@
-import { GuildMember, TextChannel } from 'discord.js';
+import { GuildMember, PermissionFlagsBits, TextChannel } from 'discord.js';
 
 import { ownerId } from '../config.ts';
 
 import type {
   ChatInputCommandInteraction,
+  Message,
   PermissionResolvable,
   TextBasedChannel,
 } from 'discord.js';
@@ -30,4 +31,23 @@ export function assertTextChannel(
   if (!channel || !(channel instanceof TextChannel)) {
     throw new Error('Missing or invalid channel type');
   }
+}
+export const WORDLE_BOT_USER_ID = '1211781489931452447';
+
+export function isScoreSummaryMessage(msg: Message): boolean {
+  return (
+    msg.author.id === WORDLE_BOT_USER_ID && msg.content.includes("Here are yesterday's results")
+  );
+}
+
+export function canSendMessage(msg: Message): boolean {
+  const { channel } = msg;
+  if (!(channel instanceof TextChannel)) return false;
+  const botMember = channel.guild.members.me;
+  if (!botMember) return false;
+  const permissions = channel.permissionsFor(botMember);
+  return (
+    permissions.has(PermissionFlagsBits.ViewChannel) &&
+    permissions.has(PermissionFlagsBits.SendMessages)
+  );
 }

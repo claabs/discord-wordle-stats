@@ -14,3 +14,5 @@ export const logLevel = process.env.LOG_LEVEL ?? 'info';
 export const dataPath = process.env.DATA_PATH ?? './data';
 
 export const onlyCache = process.env.ONLY_CACHE === 'true';
+
+export const devGuildId = process.env.DEV_GUILD_ID;

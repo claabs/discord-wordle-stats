@@ -47,9 +47,31 @@ export interface LastMessageDoc {
   messageId: string;
 }
 
+export interface UserStats {
+  sum: number;
+  count: number;
+  failCount: number;
+  average: number;
+  upperBound: number;
+  userIdOrNickname: string;
+  isNickname: boolean;
+}
+
+export interface StatSummaryDoc {
+  type: 'statSummary';
+  guildId: string;
+  channelId: string;
+  messageId: string;
+  timestamp: number;
+  userStats: UserStats[];
+}
+
 export type NicknameEntry = Pick<NicknameDoc, 'nickname' | 'userId'>;
 
-const db = new PouchDB<ResultDoc | NicknameDoc | LastMessageDoc>(path.join(dataPath, 'db'), {});
+const db = new PouchDB<ResultDoc | NicknameDoc | LastMessageDoc | StatSummaryDoc>(
+  path.join(dataPath, 'db'),
+  {},
+);
 
 await db.createIndex({ index: { fields: ['type', 'guildId', 'nickname'] } });
 await db.createIndex({ index: { fields: ['userId', 'type', 'guildId'] } });
@@ -62,6 +84,10 @@ function nicknameId(guildId: string, nickname: string): string {
 
 function lastMessageId(guildId: string, channelId: string): string {
   return `lastMessage:${guildId}:${channelId}`;
+}
+
+function statSummaryId(guildId: string, channelId: string): string {
+  return `statSummary:${guildId}:${channelId}`;
 }
 
 // Nickname helpers
@@ -231,4 +257,36 @@ export async function getResults(guildId: string, channelId: string): Promise<Re
   }
 
   return res.docs;
+}
+
+export async function setLatestStatSummary(doc: Omit<StatSummaryDoc, 'type'>): Promise<void> {
+  const id = statSummaryId(doc.guildId, doc.channelId);
+  const existing = await db.get<StatSummaryDoc>(id).catch(() => {});
+  const baseDoc: PouchDB.Core.Document<StatSummaryDoc> = {
+    _id: id,
+    type: 'statSummary',
+    ...doc,
+  };
+  if (existing) {
+    const revDoc: PouchDB.Core.ExistingDocument<StatSummaryDoc> = {
+      ...baseDoc,
+      _rev: existing._rev,
+    };
+    await db.put(revDoc, { force: true });
+  } else {
+    await db.put(baseDoc);
+  }
+}
+
+export async function getLatestStatSummary(
+  guildId: string,
+  channelId: string,
+): Promise<StatSummaryDoc | undefined> {
+  const id = statSummaryId(guildId, channelId);
+  try {
+    const res = await db.get<StatSummaryDoc>(id);
+    return res;
+  } catch {
+    return undefined;
+  }
 }

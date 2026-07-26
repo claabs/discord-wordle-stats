@@ -2,13 +2,14 @@
 import { Client, Events, GatewayIntentBits, MessageFlags, OAuth2Scopes } from 'discord.js';
 
 import { deployCommands, nicknameCommand, statsCommand } from './commands.ts';
-import { botToken } from './config.ts';
+import { botToken, devGuildId } from './config.ts';
 import {
   handleAddNickname,
   handleListNicknames,
   handleRemoveNickname,
 } from './handlers/nickname.ts';
-import { handleStats } from './handlers/stats.ts';
+import { handleResultsMessageCreated, handleStats } from './handlers/stats.ts';
+import { canSendMessage, isScoreSummaryMessage } from './handlers/utils.ts';
 import { baseLogger } from './logger.ts';
 
 import type { ChatInputCommandInteraction } from 'discord.js';
@@ -74,6 +75,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
       else if (sub === 'remove') await handlerWrap(handleRemoveNickname, interaction);
       else if (sub === 'list') await handlerWrap(handleListNicknames, interaction);
     }
+  }
+});
+
+client.on(Events.MessageCreate, async (msg) => {
+  if (
+    isScoreSummaryMessage(msg) &&
+    msg.inGuild() &&
+    canSendMessage(msg) &&
+    msg.guildId === devGuildId
+  ) {
+    const logger = baseLogger.child({
+      guildId: msg.guildId,
+      msgId: msg.id,
+    });
+
+    await handleResultsMessageCreated(msg, logger);
   }
 });
 

@@ -1,41 +1,33 @@
 import stdev from '@stdlib/stats-base-stdev';
-import { channelMention, MessageFlags, userMention } from 'discord.js';
+import { channelMention, MessageFlags, TextChannel, userMention } from 'discord.js';
 
-import { assertTextChannel } from './utils.ts';
+import { assertTextChannel, isScoreSummaryMessage } from './utils.ts';
 import { isDev, onlyCache } from '../config.ts';
 import {
   addNicknames,
   addResults,
   getAllNicknamesIn,
   getLastMessageId,
+  getLatestStatSummary,
   getResults,
   getUserIdsFromNicknames,
   setLastMessageId,
+  setLatestStatSummary,
 } from '../data.ts';
 
 import type {
   ChannelType,
   ChatInputCommandInteraction,
   FetchMessagesOptions,
-  TextChannel,
+  GuildTextBasedChannel,
+  Message,
 } from 'discord.js';
 import type { Logger } from 'pino';
 
-import type { NicknameEntry, ResultDoc, Winner } from '../data.ts';
+import type { NicknameEntry, ResultDoc, UserStats, Winner } from '../data.ts';
 
-const WORDLE_BOT_USER_ID = '1211781489931452447';
 // Points assigned for a failed Wordle attempt (X)
 const DEFAULT_FAIL_SCORE = 7;
-
-interface UserStats {
-  sum: number;
-  count: number;
-  failCount: number;
-  average: number;
-  upperBound: number;
-  userIdOrNickname: string;
-  isNickname: boolean;
-}
 
 type SortMode = 'average' | 'confidence';
 
@@ -79,6 +71,108 @@ function parseWinners(content: string): Winner[] {
 
 function maxString(a: string, b: string): string {
   return a > b ? a : b;
+}
+
+interface SaveHistoricalResultsInput {
+  logger: Logger;
+  ignoreCache: boolean;
+  historyDays?: number;
+  guildId: string;
+  channel: GuildTextBasedChannel;
+}
+
+async function saveHistoricalResults(input: SaveHistoricalResultsInput) {
+  const { logger, ignoreCache, historyDays, guildId, channel } = input;
+  const channelId = channel.id;
+  logger.info({ clearCache: ignoreCache, historyDays, channelId }, 'Parsing historical results');
+
+  const minDateTimestamp = historyDays
+    ? Date.now() - historyDays * 24 * 60 * 60 * 1000
+    : new Date('2025-05-01').getTime();
+
+  let lastMessageId = onlyCache ? undefined : await getLastMessageId(guildId, channelId);
+
+  let lastProcessedMessage: string | undefined;
+  let processedMessagesCount = 0;
+  let continueFetchingMessages = true;
+
+  /**
+   * If ignoreCache is false and we have a lastMessage, process the message history chronologically until we run out of new messages
+   * Else, process the message history in reverse chronological order until the minDateTimestamp
+   */
+  const fetchChronologically = !ignoreCache && !!lastMessageId;
+  if (fetchChronologically) lastProcessedMessage = lastMessageId;
+
+  logger.debug({ lastMessageId, fetchChronologically }, 'Fetching message history');
+
+  if (!onlyCache) {
+    const BATCH_SIZE = 100;
+    /* eslint-disable no-await-in-loop */
+    while (continueFetchingMessages) {
+      const fetchOptions: FetchMessagesOptions = {
+        limit: BATCH_SIZE,
+      };
+      if (fetchChronologically) {
+        fetchOptions.after = lastProcessedMessage;
+      } else {
+        fetchOptions.before = lastProcessedMessage;
+      }
+
+      logger.trace({ fetchOptions }, 'Fetching message batch');
+      const messageBatch = await channel.messages.fetch(fetchOptions);
+      logger.trace({ messageCount: messageBatch.size }, 'Fetched message batch');
+      if (messageBatch.size < BATCH_SIZE) {
+        continueFetchingMessages = false;
+      }
+
+      const newResults: Omit<ResultDoc, 'type'>[] = [];
+      for (const msg of messageBatch.values()) {
+        lastMessageId = lastMessageId ? maxString(msg.id, lastMessageId) : msg.id;
+        lastProcessedMessage = msg.id;
+
+        // when processing reverse-chronological, stop when we reach the min timestamp
+        if (!fetchChronologically && msg.createdTimestamp < minDateTimestamp) {
+          continueFetchingMessages = false;
+          break;
+        }
+        const { content } = msg;
+
+        if (isScoreSummaryMessage(msg)) {
+          const winners = parseWinners(content);
+
+          newResults.push({
+            guildId,
+            channelId,
+            timestamp: msg.createdTimestamp,
+            content,
+            winners,
+            messageId: msg.id,
+          });
+
+          processedMessagesCount += 1;
+        }
+      }
+      await addResults(newResults);
+    }
+    /* eslint-enable no-await-in-loop */
+    if (lastMessageId) {
+      logger.debug({ channelId, lastMessageId }, 'Updating last processed message ID');
+      await setLastMessageId(guildId, channelId, lastMessageId);
+    }
+
+    logger.debug({ channelId, processedMessagesCount }, 'Processed new Wordle results');
+  }
+}
+
+function getLatestResult(results: ResultDoc[]): ResultDoc {
+  let latestResult: ResultDoc | undefined;
+  for (const result of results) {
+    if (!latestResult || new Date(result.timestamp) > new Date(latestResult.timestamp)) {
+      latestResult = result;
+    }
+  }
+  if (!latestResult) throw new Error('No Wordle results available to parse.');
+  return latestResult;
 }
 
 async function matchNicknames(
@@ -228,9 +322,10 @@ export async function handleStats(
 
   const ignoreCache = interaction.options.getBoolean('ignore-cache', false) ?? false;
 
-  const historyDays = interaction.options.getInteger('history-days', false);
+  const historyDays = interaction.options.getInteger('history-days', false) ?? undefined;
 
-  if (historyDays !== null && historyDays < 0) throw new Error('history-days must be positive');
+  if (historyDays !== undefined && historyDays < 0)
+    throw new Error('history-days must be positive');
 
   const failScore = interaction.options.getInteger('fail-score', false) ?? DEFAULT_FAIL_SCORE;
 
@@ -241,95 +336,23 @@ export async function handleStats(
     flags: isDev ? MessageFlags.Ephemeral : undefined,
   });
 
-  logger.info({ clearCache: ignoreCache, historyDays, channelId }, 'Starting stats calculation');
-
-  const minDateTimestamp = historyDays
-    ? Date.now() - historyDays * 24 * 60 * 60 * 1000
-    : new Date('2025-05-01').getTime();
-
-  let lastMessageId = onlyCache ? undefined : await getLastMessageId(guildId, channelId);
-
-  let lastProcessedMessage: string | undefined;
-  let processedMessagesCount = 0;
-  let continueFetchingMessages = true;
-
-  /**
-   * If ignoreCache is false and we have a lastMessage, process the message history chronologically until we run out of new messages
-   * Else, process the message history in reverse chronological order until the minDateTimestamp
-   */
-
-  const fetchChronologically = !ignoreCache && !!lastMessageId;
-  if (fetchChronologically) lastProcessedMessage = lastMessageId;
-
-  logger.debug({ lastMessageId, fetchChronologically }, 'Fetching message history');
-
-  if (!onlyCache) {
-    const BATCH_SIZE = 100;
-    /* eslint-disable no-await-in-loop */
-    while (continueFetchingMessages) {
-      const fetchOptions: FetchMessagesOptions = {
-        limit: BATCH_SIZE,
-      };
-      if (fetchChronologically) {
-        fetchOptions.after = lastProcessedMessage;
-      } else {
-        fetchOptions.before = lastProcessedMessage;
-      }
-
-      logger.trace({ fetchOptions }, 'Fetching message batch');
-      const messageBatch = await channel.messages.fetch(fetchOptions);
-      logger.trace({ messageCount: messageBatch.size }, 'Fetched message batch');
-      if (messageBatch.size < BATCH_SIZE) {
-        continueFetchingMessages = false;
-      }
-
-      const newResults: Omit<ResultDoc, 'type'>[] = [];
-      for (const msg of messageBatch.values()) {
-        lastMessageId = lastMessageId ? maxString(msg.id, lastMessageId) : msg.id;
-        lastProcessedMessage = msg.id;
-
-        // when processing reverse-chronological, stop when we reach the min timestamp
-        if (!fetchChronologically && msg.createdTimestamp < minDateTimestamp) {
-          continueFetchingMessages = false;
-          break;
-        }
-        const { content } = msg;
-
-        if (
-          msg.author.id === WORDLE_BOT_USER_ID &&
-          content.includes("Here are yesterday's results")
-        ) {
-          const winners = parseWinners(content);
-
-          newResults.push({
-            guildId,
-            channelId,
-            timestamp: msg.createdTimestamp,
-            content,
-            winners,
-            messageId: msg.id,
-          });
-
-          processedMessagesCount += 1;
-        }
-      }
-      await addResults(newResults);
-    }
-    /* eslint-enable no-await-in-loop */
-
-    if (lastMessageId) {
-      logger.debug({ channelId, lastMessageId }, 'Updating last processed message ID');
-      await setLastMessageId(guildId, channelId, lastMessageId);
-    }
-
-    logger.debug({ channelId, processedMessagesCount }, 'Processed new Wordle results');
-  }
+  await saveHistoricalResults({ logger, ignoreCache, historyDays, guildId, channel });
 
   const results = await getResults(guildId, channelId);
+
+  const latestResult = getLatestResult(results);
 
   const unresolvedNicknames = onlyCache ? [] : await matchNicknames(results, guildId, channel);
 
   const userStats = await calculateAverageScores(results, guildId, failScore);
+
+  await setLatestStatSummary({
+    guildId,
+    channelId,
+    userStats,
+    timestamp: latestResult.timestamp,
+    messageId: latestResult.messageId,
+  });
 
   let sortedUserStats: UserStats[] = [];
   // Sort by score ascending, then count descending for ties
@@ -378,4 +401,125 @@ export async function handleStats(
   await interaction.editReply({
     content: contentLines.join('\n'),
   });
+}
+
+export async function handleResultsMessageCreated(
+  msg: Message<true>,
+  logger: Logger,
+): Promise<void> {
+  const { guildId, channelId, channel } = msg;
+  logger.info('Parsing results message created');
+  if (!(channel instanceof TextChannel)) {
+    logger.warn({ channelType: channel.type }, 'Invalid channel type, must be text channel');
+    return;
+  }
+  const prevStatSummary = await getLatestStatSummary(guildId, channelId);
+  await saveHistoricalResults({
+    ignoreCache: false,
+    logger,
+    guildId,
+    channel,
+  });
+
+  const results = await getResults(guildId, channelId);
+
+  const latestResult = getLatestResult(results);
+
+  await matchNicknames(results, guildId, channel);
+
+  const newUserStats = await calculateAverageScores(results, guildId, DEFAULT_FAIL_SCORE);
+
+  await setLatestStatSummary({
+    guildId,
+    channelId,
+    userStats: newUserStats,
+    timestamp: latestResult.timestamp,
+    messageId: latestResult.messageId,
+  });
+
+  if (!prevStatSummary) {
+    logger.warn('No previous user stats to compare against');
+    return;
+  }
+  const prevUserStats = prevStatSummary.userStats;
+
+  if (prevStatSummary.messageId === latestResult.messageId) {
+    logger.warn('Comparing the same results message, skipping');
+    return;
+  }
+
+  const prevSortedUserStats = prevUserStats.toSorted(
+    (a, b) => a.upperBound - b.upperBound || b.count - a.count,
+  );
+
+  const newSortedUserStats = newUserStats.toSorted(
+    (a, b) => a.upperBound - b.upperBound || b.count - a.count,
+  );
+
+  const prevUserRank = new Map<string, number>();
+  for (const [index, userStat] of prevSortedUserStats.entries()) {
+    prevUserRank.set(userStat.userIdOrNickname, index + 1);
+  }
+
+  interface RankChange {
+    userIdOrNickname: string;
+    isNickname: boolean;
+    newRank: number;
+    oldRank?: number;
+    diff?: number;
+  }
+  const rankChanges: RankChange[] = [];
+  for (const [index, userStat] of newSortedUserStats.entries()) {
+    const oldRank = prevUserRank.get(userStat.userIdOrNickname);
+    const newRank = index + 1;
+    if (oldRank !== newRank) {
+      const diff = oldRank === undefined ? oldRank : newRank - oldRank;
+      rankChanges.push({
+        userIdOrNickname: userStat.userIdOrNickname,
+        newRank,
+        oldRank,
+        diff,
+        isNickname: userStat.isNickname,
+      });
+    }
+  }
+
+  const sortedRankChanges = rankChanges.toSorted((a, b) => {
+    let compareResult;
+    if (a.diff !== undefined && b.diff !== undefined) {
+      compareResult = b.diff - a.diff;
+    }
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+    return compareResult || a.newRank - b.newRank;
+  });
+
+  const statsLines = sortedRankChanges.map((rankChange) => {
+    let diffChange: string;
+    if (!rankChange.diff) {
+      diffChange = '🆕';
+    } else if (rankChange.diff > 0) {
+      diffChange = `⏫ +${rankChange.diff.toFixed(0)}`;
+    } else {
+      diffChange = `🔻 -${rankChange.diff.toFixed(0)}`;
+    }
+    const idDisplay = rankChange.isNickname
+      ? rankChange.userIdOrNickname
+      : userMention(rankChange.userIdOrNickname);
+    const rankBeforeAfter =
+      rankChange.oldRank === undefined
+        ? `? ➡️ #${rankChange.newRank}`
+        : `#${rankChange.oldRank} ➡️ #${rankChange.newRank}`;
+    return `${diffChange} ${idDisplay} (${rankBeforeAfter})`;
+  });
+
+  const contentLines = [`## Ranking order changed!`, ...statsLines];
+
+  // truncate to fit within Discord message limit
+  while (contentLines.join('\n').length > 2000) {
+    contentLines.pop();
+  }
+
+  logger.debug('Replying to message');
+
+  msg.reply(contentLines.join('\n'));
 }
