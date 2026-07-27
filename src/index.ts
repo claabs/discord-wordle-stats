@@ -21,6 +21,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.GuildMessages,
   ],
   allowedMentions: { parse: [] },
 });
@@ -79,19 +80,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 client.on(Events.MessageCreate, async (msg) => {
-  if (
-    isScoreSummaryMessage(msg) &&
-    msg.inGuild() &&
-    canSendMessage(msg) &&
-    msg.guildId === devGuildId
-  ) {
-    const logger = baseLogger.child({
-      guildId: msg.guildId,
-      msgId: msg.id,
-    });
-
-    await handleResultsMessageCreated(msg, logger);
+  if (msg.guildId !== devGuildId) {
+    return;
   }
+  const logger = baseLogger.child({
+    guildId: msg.guildId,
+    msgId: msg.id,
+    handler: 'MessageCreate',
+  });
+  if (!msg.inGuild()) {
+    logger.debug('Ignoring non-guild message');
+    return;
+  }
+  if (!isScoreSummaryMessage(msg)) {
+    logger.debug('Ignoring non-score summary message');
+    return;
+  }
+  if (!canSendMessage(msg)) {
+    logger.debug('Ignoring message from non-admin');
+    return;
+  }
+  if (!canSendMessage(msg)) {
+    logger.debug('Missing permissions to send reply, ignoring');
+  }
+  await handleResultsMessageCreated(msg, logger);
 });
 
 client.on(Events.Debug, (msg) => baseLogger.trace(msg));
