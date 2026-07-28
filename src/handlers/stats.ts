@@ -484,6 +484,11 @@ export async function handleResultsMessageCreated(
     }
   }
 
+  if (rankChanges.length === 0) {
+    logger.debug('No rank changes detected, skipping message');
+    return;
+  }
+
   const sortedRankChanges = rankChanges.toSorted((a, b) => {
     let compareResult;
     if (a.diff !== undefined && b.diff !== undefined) {
