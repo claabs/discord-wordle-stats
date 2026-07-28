@@ -487,8 +487,10 @@ export async function handleResultsMessageCreated(
   const sortedRankChanges = rankChanges.toSorted((a, b) => {
     let compareResult;
     if (a.diff !== undefined && b.diff !== undefined) {
-      compareResult = b.diff - a.diff;
+      // sort low to high
+      compareResult = a.diff - b.diff;
     }
+    // then sort by rank top ranks to bottom ranks
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     return compareResult || a.newRank - b.newRank;
   });
@@ -497,9 +499,11 @@ export async function handleResultsMessageCreated(
     let diffChange: string;
     if (!rankChange.diff) {
       diffChange = '🆕';
-    } else if (rankChange.diff > 0) {
-      diffChange = `⏫ +${rankChange.diff.toFixed(0)}`;
+    } else if (rankChange.diff < 0) {
+      // if diff is negative, the user moved up the rankings (5 -> 4)
+      diffChange = `🔼 +${(rankChange.diff * -1).toFixed(0)}`;
     } else {
+      // if diff is positive, the user moved down the rankings (1 -> 2)
       diffChange = `🔻 -${rankChange.diff.toFixed(0)}`;
     }
     const idDisplay = rankChange.isNickname
@@ -508,7 +512,7 @@ export async function handleResultsMessageCreated(
     const rankBeforeAfter =
       rankChange.oldRank === undefined
         ? `? ➡️ #${rankChange.newRank}`
-        : `#${rankChange.oldRank} ➡️ #${rankChange.newRank}`;
+        : `#${rankChange.oldRank} to #${rankChange.newRank}`;
     return `${diffChange} ${idDisplay} (${rankBeforeAfter})`;
   });
 
