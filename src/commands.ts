@@ -84,9 +84,13 @@ export const nicknameCommand = new SlashCommandBuilder()
       ),
   );
 
-const commands = [statsCommand.toJSON(), nicknameCommand.toJSON()];
+export const inviteCommand = new SlashCommandBuilder()
+  .setName('invite')
+  .setDescription('Get an invite link');
+
+const commands = [statsCommand, nicknameCommand, inviteCommand];
 
 export async function deployCommands(clientId: string): Promise<void> {
   const rest = new REST().setToken(botToken);
-  await rest.put(Routes.applicationCommands(clientId), { body: commands });
+  await rest.put(Routes.applicationCommands(clientId), { body: commands.map((c) => c.toJSON()) });
 }

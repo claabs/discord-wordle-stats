@@ -1,15 +1,16 @@
 // Require the necessary discord.js classes
 import { Client, Events, GatewayIntentBits, MessageFlags, OAuth2Scopes } from 'discord.js';
 
-import { deployCommands, nicknameCommand, statsCommand } from './commands.ts';
+import { deployCommands, inviteCommand, nicknameCommand, statsCommand } from './commands.ts';
 import { botToken, devGuildId } from './config.ts';
+import { handleInvite } from './handlers/invite.ts';
 import {
   handleAddNickname,
   handleListNicknames,
   handleRemoveNickname,
 } from './handlers/nickname.ts';
 import { handleResultsMessageCreated, handleStats } from './handlers/stats.ts';
-import { canSendMessage, isScoreSummaryMessage } from './handlers/utils.ts';
+import { canSendMessage, generateInviteUrl, isScoreSummaryMessage } from './handlers/utils.ts';
 import { baseLogger } from './logger.ts';
 
 import type { ChatInputCommandInteraction } from 'discord.js';
@@ -28,10 +29,7 @@ const client = new Client({
 
 client.once(Events.ClientReady, async (readyClient) => {
   baseLogger.info({ nickname: readyClient.user.tag }, 'Client ready');
-  const inviteUrl = client.generateInvite({
-    scopes: [OAuth2Scopes.Bot, OAuth2Scopes.ApplicationsCommands],
-    permissions: ['ViewChannel', 'ReadMessageHistory'],
-  });
+  const inviteUrl = generateInviteUrl(readyClient);
   baseLogger.info({ inviteUrl }, 'Invite URL');
   await deployCommands(readyClient.user.id);
 });
@@ -75,12 +73,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (sub === 'add') await handlerWrap(handleAddNickname, interaction);
       else if (sub === 'remove') await handlerWrap(handleRemoveNickname, interaction);
       else if (sub === 'list') await handlerWrap(handleListNicknames, interaction);
+    } else if (interaction.commandName === inviteCommand.name) {
+      await handlerWrap(handleInvite, interaction);
     }
   }
 });
 
 client.on(Events.MessageCreate, async (msg) => {
   if (msg.guildId !== devGuildId) {
+    return;
+  }
+  if (!canSendMessage(msg.channel)) {
     return;
   }
   const logger = baseLogger.child({
@@ -95,13 +98,6 @@ client.on(Events.MessageCreate, async (msg) => {
   if (!isScoreSummaryMessage(msg)) {
     logger.debug('Ignoring non-score summary message');
     return;
-  }
-  if (!canSendMessage(msg)) {
-    logger.debug('Ignoring message from non-admin');
-    return;
-  }
-  if (!canSendMessage(msg)) {
-    logger.debug('Missing permissions to send reply, ignoring');
   }
   await handleResultsMessageCreated(msg, logger);
 });

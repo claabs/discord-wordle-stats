@@ -1,8 +1,8 @@
 import stdev from '@stdlib/stats-base-stdev';
 import { channelMention, MessageFlags, TextChannel, userMention } from 'discord.js';
 
-import { assertTextChannel, isScoreSummaryMessage } from './utils.ts';
-import { isDev, onlyCache } from '../config.ts';
+import { assertTextChannel, canSendMessage, isScoreSummaryMessage } from './utils.ts';
+import { devGuildId, isDev, onlyCache } from '../config.ts';
 import {
   addNicknames,
   addResults,
@@ -393,10 +393,17 @@ export async function handleStats(
     );
   }
 
+  const reactCtaMessage =
+    canSendMessage(interaction.channel) && interaction.guildId === devGuildId
+      ? ''
+      : `-# btw, this bot can now reply to the daily results when the ranks change. Add the new Send Messages permission with /invite`;
+
   // truncate to fit within Discord message limit
-  while (contentLines.join('\n').length > 2000) {
+  while (contentLines.join('\n').length > 2000 - reactCtaMessage.length) {
     contentLines.pop();
   }
+
+  if (reactCtaMessage) contentLines.push(reactCtaMessage);
 
   await interaction.editReply({
     content: contentLines.join('\n'),

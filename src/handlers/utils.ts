@@ -1,9 +1,11 @@
-import { GuildMember, PermissionFlagsBits, TextChannel } from 'discord.js';
+import { GuildMember, OAuth2Scopes, PermissionFlagsBits, TextChannel } from 'discord.js';
 
-import { ownerId } from '../config.ts';
+import { devGuildId, ownerId } from '../config.ts';
 
 import type {
+  Channel,
   ChatInputCommandInteraction,
+  Client,
   Message,
   PermissionResolvable,
   TextBasedChannel,
@@ -40,8 +42,7 @@ export function isScoreSummaryMessage(msg: Message): boolean {
   );
 }
 
-export function canSendMessage(msg: Message): boolean {
-  const { channel } = msg;
+export function canSendMessage(channel: Channel | null): boolean {
   if (!(channel instanceof TextChannel)) return false;
   const botMember = channel.guild.members.me;
   if (!botMember) return false;
@@ -50,4 +51,11 @@ export function canSendMessage(msg: Message): boolean {
     permissions.has(PermissionFlagsBits.ViewChannel) &&
     permissions.has(PermissionFlagsBits.SendMessages)
   );
+}
+
+export function generateInviteUrl(client: Client<true>): string {
+  return client.generateInvite({
+    scopes: [OAuth2Scopes.Bot, OAuth2Scopes.ApplicationsCommands],
+    permissions: ['ViewChannel', 'ReadMessageHistory', 'SendMessages'],
+  });
 }
