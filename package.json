@@ -48,5 +48,13 @@
     "pouchdb": "^9.0.0",
     "pouchdb-find": "^9.0.0",
     "zlib-sync": "^0.1.10"
+  },
+  "overrides": {
+    "pouchdb": {
+      "uuid": "^11.1.1"
+    },
+    "pouchdb-utils": {
+      "uuid": "^11.1.1"
+    }
   }
 }
