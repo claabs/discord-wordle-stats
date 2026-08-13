@@ -1,5 +1,7 @@
 # Discord Wordle Stats
 
+[![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv9%2Fapplication-directory-static%2Fapplications%2F1440121397140521142%3Flocale%3Den-US%26nocache%3Dtrue&query=%24.directory_entry.guild_count&prefix=in%20&suffix=%20servers&logo=discord&label=Invite&cacheSeconds=86400)](https://discord.com/discovery/applications/1440121397140521142)
+
 A Discord bot that calculates statistics for the official Discord Wordle application.
 
 ![An example of the bot output showing average scores for all players in a channel](img/stats.png)
