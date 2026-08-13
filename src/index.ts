@@ -1,8 +1,8 @@
 // Require the necessary discord.js classes
-import { Client, Events, GatewayIntentBits, MessageFlags, OAuth2Scopes } from 'discord.js';
+import { Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
 
 import { deployCommands, inviteCommand, nicknameCommand, statsCommand } from './commands.ts';
-import { botToken, devGuildId } from './config.ts';
+import { botToken } from './config.ts';
 import { handleInvite } from './handlers/invite.ts';
 import {
   handleAddNickname,
@@ -80,9 +80,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 client.on(Events.MessageCreate, async (msg) => {
-  if (msg.guildId !== devGuildId) {
-    return;
-  }
   if (!canSendMessage(msg.channel)) {
     return;
   }

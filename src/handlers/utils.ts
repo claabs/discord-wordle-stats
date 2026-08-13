@@ -1,6 +1,6 @@
 import { GuildMember, OAuth2Scopes, PermissionFlagsBits, TextChannel } from 'discord.js';
 
-import { devGuildId, ownerId } from '../config.ts';
+import { ownerId } from '../config.ts';
 
 import type {
   Channel,

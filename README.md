@@ -4,16 +4,19 @@ A Discord bot that calculates statistics for the official Discord Wordle applica
 
 ![An example of the bot output showing average scores for all players in a channel](img/stats.png)
 
+![An example of the bot reacting to a score summary that caused a ranking order change](img/rank-change.png)
+
 ## Features
 
 - Displays average score, total game count, and failed game count per user
+- Sends a message when the previous day's scores changed the rankings
 - Handles the bug where the official Wordle application sometimes doesn't properly tag users
 - Ability to manually set nicknames for edge cases
 
 ## Caveats
 
 - Doesn't support multiple users using the same nicknames
-- It just parses the results message, so incomplete games count as an "X" (a fail)
+- It just parses the results message text, so incomplete games count as an "X" (a fail)
 - Only servers are supported; does not support Wordle stats when played in a DM with the official Wordle application
 
 ## Quick Start (Docker)
@@ -58,7 +61,7 @@ services:
   - [x] Guild install
 - Default Install Settings
   - Scopes: `application.commands`, `bot`
-  - Permissions: `Read Message History`, `View Channels`
+  - Permissions: `Read Message History`, `Send Messages`, `View Channels`
 
 #### Bot
 
