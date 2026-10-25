@@ -5,7 +5,10 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json* ./
-RUN apk add --no-cache g++ python3 make && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    --mount=type=cache,target=/root/.npm \
+    apk add --no-cache g++ python3 make && \
     npm ci --omit=dev
 
 FROM node:24-alpine
