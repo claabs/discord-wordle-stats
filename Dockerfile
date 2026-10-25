@@ -5,8 +5,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json* ./
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,target=/var/cache/apk \
     --mount=type=cache,target=/root/.npm \
     apk add --no-cache g++ python3 make && \
     npm ci --omit=dev
