@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN --mount=type=cache,target=/var/cache/apk \
     --mount=type=cache,target=/root/.npm \
-    apk add --no-cache g++ python3 make && \
+    apk add --update-cache g++ python3 make && \
     npm ci --omit=dev
 
 FROM node:24-alpine
