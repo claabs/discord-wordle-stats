@@ -77,6 +77,13 @@ await db.createIndex({ index: { fields: ['type', 'guildId', 'nickname'] } });
 await db.createIndex({ index: { fields: ['userId', 'type', 'guildId'] } });
 await db.createIndex({ index: { fields: ['type', 'guildId', 'channelId'] } });
 
+async function shutdown() {
+  await db.close();
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
 function nicknameId(guildId: string, nickname: string): string {
   // encode nickname to be safe in _id
   return `nickname:${guildId}:${encodeURIComponent(nickname)}`;
