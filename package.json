@@ -31,7 +31,7 @@
     "@types/node": "^24.10.4",
     "@types/pouchdb": "^6.4.2",
     "@types/pouchdb-find": "^7.3.3",
-    "eslint": "^9.39.2",
+    "eslint": "^9.39.5",
     "eslint-config-airbnb-extended": "^3.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",

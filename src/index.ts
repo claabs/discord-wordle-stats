@@ -89,11 +89,11 @@ client.on(Events.MessageCreate, async (msg) => {
     handler: 'MessageCreate',
   });
   if (!msg.inGuild()) {
-    logger.debug('Ignoring non-guild message');
+    logger.trace('Ignoring non-guild message');
     return;
   }
   if (!isScoreSummaryMessage(msg)) {
-    logger.debug('Ignoring non-score summary message');
+    logger.trace('Ignoring non-score summary message');
     return;
   }
   await handleResultsMessageCreated(msg, logger);

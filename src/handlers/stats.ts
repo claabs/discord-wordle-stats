@@ -344,6 +344,7 @@ export async function handleStats(
 
   const unresolvedNicknames = onlyCache ? [] : await matchNicknames(results, guildId, channel);
 
+  logger.info({ resultsCount: results.length }, 'Calculating scores for leaderboard');
   const userStats = await calculateAverageScores(results, guildId, failScore);
 
   await setLatestStatSummary({
@@ -433,6 +434,7 @@ export async function handleResultsMessageCreated(
 
   await matchNicknames(results, guildId, channel);
 
+  logger.info({ resultsCount: results.length }, 'Calculating scores for ranking change');
   const newUserStats = await calculateAverageScores(results, guildId, DEFAULT_FAIL_SCORE);
 
   await setLatestStatSummary({
